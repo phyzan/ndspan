@@ -15,10 +15,11 @@
 
 #define THIS static_cast<std::conditional_t<std::is_void_v<Derived>, \
     std::remove_reference_t<decltype(*this)>, \
-    copy_const_t<std::remove_reference_t<decltype(*this)>, Derived>>*>(this)
-#define CONST_CAST(TYPE, FUNC) const_cast<TYPE>(static_cast<const CLS*>(this)->FUNC);
-#define INLINE __attribute__((always_inline)) inline
-#define LAMBDA_INLINE __attribute__((always_inline, flatten))
+    ndspan::detail::copy_const_t<std::remove_reference_t<decltype(*this)>, Derived>>*>(this)
+
+#define NDSPAN_INLINE __attribute__((always_inline)) inline
+
+#define NDSPAN_LAMBDA_INLINE __attribute__((always_inline, flatten))
 
 #define DEFAULT_RULE_OF_FOUR(CLASSNAME)                  \
     CLASSNAME(const CLASSNAME& other) = default;      \
@@ -26,70 +27,36 @@
     CLASSNAME& operator=(const CLASSNAME& other) = default; \
     CLASSNAME& operator=(CLASSNAME&& other) = default;
 
-template<typename From, typename To>
-using copy_const_t = std::conditional_t<std::is_const_v<From>, const To, To>;
+#define NDSPAN_BOUNDS_ASSERT(i, n) assert((i>=0 && size_t(i)<size_t(n)) && "Index out of bounds")
+
+#define NDSPAN_FOR_LOOP(I, N, ...) \
+ForEach<N>([&]<size_t I>() __attribute__((always_inline, flatten)) { \
+    __VA_ARGS__ \
+}, std::forward<Args>(args)...)
+
+#define NDSPAN_EXPAND(N, I, ...) \
+Expand<N>([&]<size_t... I>() __attribute__((always_inline, flatten)) { \
+    __VA_ARGS__ \
+})
 
 namespace ndspan{
 
-#define UNIQUE_NAME(base) CONCAT(base, __COUNTER__)
-#define CONCAT(a,b) CONCAT_IMPL(a,b)
-#define CONCAT_IMPL(a,b) a##b
+namespace detail{
 
-#define INTS(IntType, I) std::integer_sequence<IntType, I...>
+template<typename From, typename To>
+using copy_const_t = std::conditional_t<std::is_const_v<From>, const To, To>;
 
-#define MAKE_INTS(IntType, N) std::make_integer_sequence<IntType, N>{}
 
-#define EXPAND(IntType, N, I, ...) [&]<IntType... I>(INTS(IntType, I)) \
-    __attribute__((always_inline, flatten)) { \
-    __VA_ARGS__ \
-}(MAKE_INTS(IntType, N))
-
-#define FOR_LOOP_IMPL(IntType, I, N, IDUMMY, ...) \
-[&]<IntType... IDUMMY>(INTS(IntType, IDUMMY)) __attribute__((always_inline, flatten)) { \
-    ([&]<IntType I>() { __VA_ARGS__ }.template operator()<IDUMMY>(), ...); \
-}(MAKE_INTS(IntType, N))
-
-#define FOR_LOOP(IntType, I, N, ...) \
-    FOR_LOOP_IMPL(IntType, I, N, CONCAT(IDUMMY,__COUNTER__), __VA_ARGS__)
-
-#define EXPAND_SUM(T, N, I, ...) ndspan::expand_sum<T, N>([&]<size_t I>() LAMBDA_INLINE{ return __VA_ARGS__; })
-
-#define BOUNDS_ASSERT(i, n) assert((i>=0 && size_t(i)<size_t(n)) && "Index out of bounds")
-
-template<size_t START, size_t END, typename Callable>
-INLINE void for_each(Callable&& func){
-    if constexpr (START == END){
-        return;
-    }else{
-        func.template operator()<START>();
-        for_each<START + 1, END>(std::forward<Callable>(func));
+template<size_t I, std::size_t N, typename F, typename... Args>
+NDSPAN_INLINE void for_each_impl(F& f, Args&... args){
+    if constexpr (I < N) {
+        f.template operator()<I>(args...);
+        for_each_impl<I + 1, N>(f, args...);
     }
 }
 
-template<typename T, size_t K, typename Callable>
-INLINE T expand_sum(Callable&& func){
-    T res = 0;
-    expand<K>([&]<size_t I>() LAMBDA_INLINE{
-        res += func.template operator()<I>();
-    });
-    return res;
-}
-
-
-
-
-template<size_t TERMS, typename Callable>
-INLINE void expand(Callable&& func){
-    expand_aux(std::make_index_sequence<TERMS>{}, std::forward<Callable>(func));
-}
-
-template<typename Callable, size_t... I>
-INLINE void expand_aux(std::index_sequence<I...>, Callable&& func){
-    (func.template operator()<I>(), ...);
-}
-
 template<std::size_t I, typename FirstType, typename... ArgType>
-INLINE constexpr decltype(auto) helper_pack_elem(FirstType&& x0, ArgType&&... x) {
+NDSPAN_INLINE constexpr decltype(auto) helper_pack_elem(FirstType&& x0, ArgType&&... x) {
     if constexpr (I == 0) {
         return std::forward<FirstType>(x0);
     } else {
@@ -98,15 +65,34 @@ INLINE constexpr decltype(auto) helper_pack_elem(FirstType&& x0, ArgType&&... x)
     }
 }
 
-template<std::size_t I, typename... Args>
-INLINE constexpr decltype(auto) pack_elem(Args&&... args) {
-    return helper_pack_elem<I>(std::forward<Args>(args)...);
+
+template<size_t... Args>
+constexpr size_t validate_size(size_t size){
+    assert(size == (Args * ...) && "Invalid initializer list size");
+    return size;
+}
+
+} // namespace detail
+
+template<size_t N, typename F, typename... Args>
+NDSPAN_INLINE void ForEach(F&& f, Args&&... args){
+    detail::for_each_impl<0, N>(f, args...);
 }
 
 
-template<typename... Ts>
-concept IsInt = (std::convertible_to<Ts, size_t>  && ...);
+template<typename F, size_t N, size_t... I>
+NDSPAN_INLINE decltype(auto) Expand(F&& f){
+    return [&]<size_t... J>(std::index_sequence<J...>) NDSPAN_LAMBDA_INLINE {
+        return f.template operator()<I...>();
+    }(std::make_index_sequence<N>{});
+}
 
+
+
+template<std::size_t I, typename... Args>
+NDSPAN_INLINE constexpr decltype(auto) pack_elem(Args&&... args) {
+    return detail::helper_pack_elem<I>(std::forward<Args>(args)...);
+}
 
 template<typename Iterable>
 size_t prod(const Iterable& array){
@@ -133,11 +119,8 @@ size_t prod(const Int* array, size_t size){
 }
 
 
-template<typename... Ts>
-concept INT_T = (std::is_integral_v<Ts>  && ...);
-
 template<typename T>
-INLINE void constexpr copy_array(T* dest, const T* src, size_t size){
+NDSPAN_INLINE void constexpr copy_array(T* dest, const T* src, size_t size){
     if (size==0) {return;}
     if constexpr (std::is_trivially_copyable_v<T>){
         std::memcpy(dest, src, size*sizeof(T));
@@ -148,7 +131,7 @@ INLINE void constexpr copy_array(T* dest, const T* src, size_t size){
 }
 
 template<typename T, size_t N>
-INLINE void constexpr copy_array(T* dest, const T* src, size_t size){
+NDSPAN_INLINE void constexpr copy_array(T* dest, const T* src, size_t size){
     assert((size == N) && "Size must match array template size in ndspan::copy_array");
     if (size==0) {return;}
     std::copy(src, src+size, dest);
@@ -156,7 +139,7 @@ INLINE void constexpr copy_array(T* dest, const T* src, size_t size){
 
 template<std::integral INT_DST, std::integral INT_SRC>
 requires (!std::same_as<INT_DST, INT_SRC>)
-INLINE void copy_array(INT_DST* dest, const INT_SRC* src, size_t size) {
+NDSPAN_INLINE void copy_array(INT_DST* dest, const INT_SRC* src, size_t size) {
     if (size == 0) {return;}
     for (size_t i = 0; i < size; i++) {
         dest[i] = src[i];
@@ -164,7 +147,7 @@ INLINE void copy_array(INT_DST* dest, const INT_SRC* src, size_t size) {
 }
 
 template<typename T>
-INLINE bool equal_arrays(const T* a, const T* b, size_t size){
+NDSPAN_INLINE bool equal_arrays(const T* a, const T* b, size_t size){
     for (size_t i=0; i<size; i++){
         if (a[i]!=b[i]) {return false;}
     }
@@ -173,7 +156,7 @@ INLINE bool equal_arrays(const T* a, const T* b, size_t size){
 
 
 template<typename T>
-INLINE T abs(const T& x){
+NDSPAN_INLINE T abs(const T& x){
     return x >= 0 ? x : -x;
 }
 
@@ -211,7 +194,7 @@ void array_repr(std::ostream& out, const Array& array) {
 }
 
 template<typename T, size_t size>
-INLINE bool equal_arrays(const T* a, const T* b){
+NDSPAN_INLINE bool equal_arrays(const T* a, const T* b){
     for (size_t i=0; i<size; i++){
         if (a[i]!=b[i]) {return false;}
     }
@@ -219,20 +202,13 @@ INLINE bool equal_arrays(const T* a, const T* b){
 }
 
 template<typename T>
-INLINE bool isStrictlyAscending(const T* array, size_t size){
+NDSPAN_INLINE bool isStrictlyAscending(const T* array, size_t size){
     for (size_t i=1; i<size; i++){
         if (array[i] <= array[i-1]){
             return false;
         }
     }
     return true;
-}
-
-
-template<size_t... Args>
-constexpr size_t _validate_size(size_t size){
-    assert(size == (Args * ...) && "Invalid initializer list size");
-    return size;
 }
 
 
@@ -247,14 +223,6 @@ struct tail_product<Head, Tail...> {
     static constexpr size_t value = Head * tail_product<Tail...>::value;
 };
 
-
-constexpr size_t factorial(size_t k){
-    size_t res = 1;
-    for (size_t i=1; i<k+1; i++){
-        res *= i;
-    }
-    return res;
-}
 
 constexpr size_t comb(size_t n, size_t k) {
     assert(n >= k);
