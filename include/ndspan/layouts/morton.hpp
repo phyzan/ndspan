@@ -7,14 +7,18 @@
 
 namespace ndspan{
 
+namespace detail{
+
 template<std::integral INT>
-constexpr INT next_pow_of_2(INT x){
+constexpr INT next_pow_of_2(INT x) noexcept{
     INT y = 1;
     while (y < x){
         y *= 2;
     }
     return y;
 }
+
+} // namespace detail
 
 template<size_t... DIMS>
 class ZorderNdSpan : public DerivedNdSpan<ZorderNdSpan<DIMS...>, DIMS...>{
@@ -27,18 +31,18 @@ public:
 
     ZorderNdSpan() = default;
 
-    template<INT_T... Args>
+    template<std::integral... Args>
     explicit constexpr ZorderNdSpan(Args... shape) : Base(shape...), _strided_span(shape...){
         this->resize(shape...);
     }
 
     DEFAULT_RULE_OF_FOUR(ZorderNdSpan)
 
-    INLINE size_t padded_size() const{
+    NDSPAN_INLINE size_t padded_size() const{
         return _padded_size;
     }
 
-    template<INT_T... Args>
+    template<std::integral... Args>
     void constexpr resize(Args... shape){
         Base::resize(shape...); //now the shape and size are updated
         size_t new_shape[sizeof...(shape)] = {static_cast<size_t>(shape)...};
@@ -80,20 +84,20 @@ public:
         }
     }
 
-    template<INT_T... Idx>
-    INLINE constexpr size_t offset_impl(Idx... idx) const noexcept{
+    template<std::integral... Idx>
+    NDSPAN_INLINE constexpr size_t offset_impl(Idx... idx) const noexcept{
         size_t id = _strided_span.offset(idx...);
         return _offset_at_id[id];
     }
 
-    template<INT_T Idx>
-    INLINE constexpr size_t getOffset_impl(const Idx* idx_ptr) const noexcept{
+    template<std::integral Idx>
+    NDSPAN_INLINE constexpr size_t getOffset_impl(const Idx* idx_ptr) const noexcept{
         size_t id = _strided_span.getOffset(idx_ptr);
         return _offset_at_id[id];
     }
 
-    template<INT_T... Idx>
-    INLINE void unpack_idx_impl(size_t offset, Idx&... idx) const noexcept{
+    template<std::integral... Idx>
+    NDSPAN_INLINE void unpack_idx_impl(size_t offset, Idx&... idx) const noexcept{
         size_t id = _id_at_offset[offset];
         _strided_span.unpack_idx(id, idx...);
     }
@@ -110,8 +114,8 @@ public:
         return res;
     }
 
-    template<INT_T... Args>
-    INLINE static constexpr size_t padded_size(Args... shape){
+    template<std::integral... Args>
+    NDSPAN_INLINE static constexpr size_t padded_size(Args... shape){
         static_assert(sizeof...(shape) > 0, "The padded_size function requires at least one argument");
         if (((shape == 0)||...)){
             return 0;
@@ -126,11 +130,11 @@ public:
     }
 
     template<std::integral INT, size_t Nd>
-    INLINE constexpr size_t morton_offset(const std::array<INT, Nd>& idx) const {
+    NDSPAN_INLINE constexpr size_t morton_offset(const std::array<INT, Nd>& idx) const {
         return _morton_offset_aux(idx, std::make_index_sequence<Nd>());
     }
 
-    template<INT_T... Coords>
+    template<std::integral... Coords>
     inline constexpr size_t morton_index(Coords... idx) const {
         this->_dim_check(idx...);
         this->_bounds_check(std::make_index_sequence<sizeof...(idx)>(), idx...);
@@ -141,7 +145,7 @@ public:
         return result;
     }
 
-    template<INT_T... Args>
+    template<std::integral... Args>
     inline constexpr void morton_unpack_idx(size_t offset, Args&... idx) const {
         //same as unpack_idx, but directly computes the indices instead of performing memory lookups.
         // offset is the morton index
@@ -151,7 +155,7 @@ public:
         }
     }
 
-    template<size_t Nd, INT_T... Args>
+    template<size_t Nd, std::integral... Args>
     inline constexpr void morton_unpack_idx_from_array(size_t offset, std::array<size_t, Nd>& idx) const {
         return _morton_unpack_idx_from_array_aux<Nd>(offset, idx, std::make_index_sequence<Nd>());
     }
@@ -159,18 +163,18 @@ public:
 private:
 
     template<size_t Axis, size_t Nd>
-    INLINE static constexpr size_t
+    NDSPAN_INLINE static constexpr size_t
     _morton_bit(size_t morton_index, size_t bit) {
         return (( (morton_index >> (bit * Nd + Axis)) & 1) << bit );
     }
 
-    template<size_t Nd, INT_T... Idx, size_t... I>
-    INLINE static constexpr void _morton_axis_aux(size_t offset, size_t bit, std::index_sequence<I...>, Idx&... idx) {
+    template<size_t Nd, std::integral... Idx, size_t... I>
+    NDSPAN_INLINE static constexpr void _morton_axis_aux(size_t offset, size_t bit, std::index_sequence<I...>, Idx&... idx) {
         ((idx |= _morton_bit<I, Nd>(offset, bit)),...);
     }
 
-    template<size_t... Axis, INT_T... Coords>
-    INLINE static constexpr size_t _dyn_morton_dims_loop(size_t bit, std::index_sequence<Axis...>, Coords... coords) {
+    template<size_t... Axis, std::integral... Coords>
+    NDSPAN_INLINE static constexpr size_t _dyn_morton_dims_loop(size_t bit, std::index_sequence<Axis...>, Coords... coords) {
         return size_t(( (((coords >> bit) & 1) << (bit*sizeof...(Axis) + Axis)) | ... ));
     }
 
@@ -179,7 +183,7 @@ private:
         return morton_index(idx[I]...);
     }
 
-    template<size_t Nd, size_t... I, INT_T... Args>
+    template<size_t Nd, size_t... I, std::integral... Args>
     inline constexpr void _morton_unpack_idx_from_array_aux(size_t offset, std::array<size_t, Nd>& idx, std::index_sequence<I...>) const {
         return this->morton_unpack_idx(offset, idx[I]...);
     }

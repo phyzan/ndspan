@@ -4,6 +4,8 @@
 
 namespace ndspan{
 
+namespace detail{
+
 template<typename Derived, size_t... DIMS>
 class StridedDerivedNdSpan : public DerivedNdSpan<Derived, DIMS...>{
 
@@ -21,7 +23,7 @@ public:
     }
 
     template<typename... Idx>
-    INLINE void unpack_idx_impl(size_t offset, Idx&... idx) const noexcept {
+    NDSPAN_INLINE void unpack_idx_impl(size_t offset, Idx&... idx) const noexcept {
         if constexpr (Base::N > 0) {
             return Derived::strided_unpack(offset, STRIDES, Base::SHAPE, idx...);
         } else {
@@ -37,8 +39,8 @@ protected:
         return s;
         }();
 
-    template<size_t... I, INT_T... Idx>
-    INLINE static constexpr size_t _static_offset_impl(std::index_sequence<I...>, Idx... idx) noexcept {
+    template<size_t... I, std::integral... Idx>
+    NDSPAN_INLINE static constexpr size_t _static_offset_impl(std::index_sequence<I...>, Idx... idx) noexcept {
         return ((static_cast<size_t>(idx) * STRIDES[I]) + ...);
     }
 
@@ -57,13 +59,13 @@ public:
 
     DEFAULT_RULE_OF_FOUR(StridedStaticNdSpan)
     
-    template<INT_T... Idx>
-    INLINE constexpr size_t offset_impl(Idx... idx) const noexcept{
+    template<std::integral... Idx>
+    NDSPAN_INLINE constexpr size_t offset_impl(Idx... idx) const noexcept{
         return Base::_static_offset_impl(std::make_index_sequence<Base::RANK>(), idx...);
     }
 
-    template<INT_T Idx>
-    INLINE constexpr size_t getOffset_impl(const Idx* idx_ptr) const noexcept{
+    template<std::integral Idx>
+    NDSPAN_INLINE constexpr size_t getOffset_impl(const Idx* idx_ptr) const noexcept{
         size_t res = 0;
         for (size_t i = 0; i < this->ndim(); i++){
             res += static_cast<size_t>(idx_ptr[i]) * Base::STRIDES[i];
@@ -92,12 +94,12 @@ protected:
 
     StridedSemiStaticNdSpan() = default;
 
-    template<INT_T... Args>
+    template<std::integral... Args>
     explicit constexpr StridedSemiStaticNdSpan(Args... shape) : Base(shape...) {
         this->_remake_strides();
     }
 
-    template<INT_T Int>
+    template<std::integral Int>
     explicit constexpr StridedSemiStaticNdSpan(const Int* shape, size_t ndim) : Base(shape, ndim) {
         this->_remake_strides();
     }
@@ -111,27 +113,27 @@ public:
         return _fixed_strides;
     }
 
-    template<INT_T... Args>
+    template<std::integral... Args>
     void constexpr resize(Args... shape){
         Base::resize(shape...);
         this->_remake_strides();
     }
 
-    template<INT_T Int>
+    template<std::integral Int>
     void constexpr resize(const Int* shape, size_t ndim){
         Base::resize(shape, ndim);
         this->_remake_strides();
     }
 
-    template<INT_T... Idx>
-    INLINE constexpr size_t offset_impl(Idx... idx) const noexcept{
-        return EXPAND(size_t, RANK, I,
+    template<std::integral... Idx>
+    NDSPAN_INLINE constexpr size_t offset_impl(Idx... idx) const noexcept{
+        return NDSPAN_EXPAND(RANK, I,
             return ((idx * _fixed_strides[I]) + ...);
         );
     }
 
-    template<INT_T Idx>
-    INLINE constexpr size_t getOffset_impl(const Idx* idx_ptr) const noexcept{
+    template<std::integral Idx>
+    NDSPAN_INLINE constexpr size_t getOffset_impl(const Idx* idx_ptr) const noexcept{
         size_t res = 0;
         for (size_t i = 0; i < this->ndim(); i++){
             res += static_cast<size_t>(idx_ptr[i]) * _fixed_strides[i];
@@ -166,10 +168,10 @@ protected:
 
     StridedSemiStaticNdSpan() = default;
 
-    template<INT_T... Args>
+    template<std::integral... Args>
     explicit constexpr StridedSemiStaticNdSpan(Args... shape) : Base(shape...) {}
 
-    template<INT_T Int>
+    template<std::integral Int>
     explicit constexpr StridedSemiStaticNdSpan(const Int* shape, size_t ndim) : Base(shape, ndim) {}
 
 };
@@ -190,10 +192,10 @@ protected:
 
     StridedSemiStaticNdSpan() = default;
 
-    template<INT_T... Args>
+    template<std::integral... Args>
     explicit constexpr StridedSemiStaticNdSpan(Args... shape) : Base(shape...) {}
 
-    template<INT_T Int>
+    template<std::integral Int>
     explicit constexpr StridedSemiStaticNdSpan(const Int* shape, size_t ndim) : Base(shape, ndim) {}
 
     DEFAULT_RULE_OF_FOUR(StridedSemiStaticNdSpan)
@@ -212,13 +214,13 @@ protected:
 
     StridedDynamicNdSpan() = default;
 
-    template<INT_T... Args>
+    template<std::integral... Args>
     explicit constexpr StridedDynamicNdSpan(Args... shape) : Base(shape...) {
         _dyn_strides = new size_t[this->ndim()];
         Derived::set_strides(_dyn_strides, this->shape(), this->ndim());
     }
 
-    template<INT_T Int>
+    template<std::integral Int>
     explicit constexpr StridedDynamicNdSpan(const Int* shape, size_t ndim) : Base(shape, ndim) {
         _dyn_strides = ndim > 0 ? new size_t[ndim] : nullptr;
         Derived::set_strides(_dyn_strides, shape, ndim);
@@ -276,14 +278,14 @@ public:
         return _dyn_strides;
     }
 
-    template<INT_T... Args>
+    template<std::integral... Args>
     void constexpr resize(Args... shape){
         size_t nd_old = this->ndim();
         Base::resize(shape...);
         this->_realloc_strides(nd_old);
     }
 
-    template<INT_T Int>
+    template<std::integral Int>
     void constexpr resize(const Int* shape, size_t ndim){
         size_t nd_old = this->ndim();
         Base::resize(shape, ndim);
@@ -292,15 +294,15 @@ public:
 
 
 
-    template<INT_T... Idx>
-    INLINE constexpr size_t offset_impl(Idx... idx) const noexcept{
-        return EXPAND(size_t, sizeof...(idx), I,
+    template<std::integral... Idx>
+    NDSPAN_INLINE constexpr size_t offset_impl(Idx... idx) const noexcept{
+        return NDSPAN_EXPAND(sizeof...(idx), I,
             return ((idx * _dyn_strides[I]) + ...);
         );
     }
 
-    template<INT_T Idx>
-    INLINE constexpr size_t getOffset_impl(const Idx* idx_ptr) const noexcept{
+    template<std::integral Idx>
+    NDSPAN_INLINE constexpr size_t getOffset_impl(const Idx* idx_ptr) const noexcept{
         size_t res = 0;
         for (size_t i = 0; i < this->ndim(); i++){
             res += static_cast<size_t>(idx_ptr[i]) * _dyn_strides[i];
@@ -326,20 +328,23 @@ private:
 template<typename Derived, size_t... DIMS>
 using StridedNdSpan = std::conditional_t<(sizeof...(DIMS) > 0 && (DIMS*...*1)>0), StridedStaticNdSpan<Derived, DIMS...>, std::conditional_t<(sizeof...(DIMS) > 0), StridedSemiStaticNdSpan<Derived, DIMS...>, StridedDynamicNdSpan<Derived>>>;
 
+} // namespace detail
+
+
 
 template<size_t... DIMS>
-class RowMajorSpan : public StridedNdSpan<RowMajorSpan<DIMS...>, DIMS...>{
+class RowMajorSpan : public detail::StridedNdSpan<RowMajorSpan<DIMS...>, DIMS...>{
 
-    using Base = StridedNdSpan<RowMajorSpan<DIMS...>, DIMS...>;
+    using Base = detail::StridedNdSpan<RowMajorSpan<DIMS...>, DIMS...>;
 
 public:
 
     DEFAULT_RULE_OF_FOUR(RowMajorSpan)
 
-    template<INT_T Int>
+    template<std::integral Int>
     constexpr explicit RowMajorSpan(const Int* shape, size_t ndim) : Base(shape, ndim) {}
 
-    template<INT_T... Args>
+    template<std::integral... Args>
     constexpr explicit RowMajorSpan(Args... shape) : Base(shape...){}
 
     template<typename StrideType, typename ShapeType>
@@ -352,8 +357,8 @@ public:
     }
 
     template<typename STRIDE_T, typename  SHAPE_T, typename... Idx>
-    INLINE static void strided_unpack(size_t offset, const STRIDE_T& strides, const SHAPE_T& shape, Idx&... idx) noexcept {
-        EXPAND(size_t, sizeof...(idx), I,
+    NDSPAN_INLINE static void strided_unpack(size_t offset, const STRIDE_T& strides, const SHAPE_T& shape, Idx&... idx) noexcept {
+        NDSPAN_EXPAND(sizeof...(idx), I,
             ((idx = offset / strides[I],
             offset %= strides[I]), ...);
         );
@@ -363,22 +368,22 @@ public:
 
 
 template<size_t R, size_t C>
-class RowMajorSpan<R, C> : public StridedNdSpan<RowMajorSpan<R, C>, R, C>{
+class RowMajorSpan<R, C> : public detail::StridedNdSpan<RowMajorSpan<R, C>, R, C>{
 
-    using Base = StridedNdSpan<RowMajorSpan<R, C>, R, C>;
+    using Base = detail::StridedNdSpan<RowMajorSpan<R, C>, R, C>;
 
 public:
 
     DEFAULT_RULE_OF_FOUR(RowMajorSpan)
 
-    template<INT_T Int>
+    template<std::integral Int>
     explicit RowMajorSpan(const Int* shape, size_t ndim) : Base(shape, ndim) {}
 
-    template<INT_T... Args>
+    template<std::integral... Args>
     explicit constexpr RowMajorSpan(Args... shape) : Base(shape...){}
 
-    template<INT_T Int1, INT_T Int2>
-    INLINE constexpr size_t offset_impl(Int1 i, Int2 j) const {
+    template<std::integral Int1, std::integral Int2>
+    NDSPAN_INLINE constexpr size_t offset_impl(Int1 i, Int2 j) const {
         if constexpr (C > 0){
             return i*C + j;
         }else {
@@ -386,13 +391,13 @@ public:
         }
     }
 
-    template<INT_T Idx>
-    INLINE constexpr size_t getOffset_impl(const Idx* idx_ptr) const noexcept{
+    template<std::integral Idx>
+    NDSPAN_INLINE constexpr size_t getOffset_impl(const Idx* idx_ptr) const noexcept{
         return offset_impl(idx_ptr[0], idx_ptr[1]);
     }
 
-    template<INT_T Int1, INT_T Int2>
-    INLINE void unpack_idx_impl(size_t offset, Int1& i, Int2& j) const {
+    template<std::integral Int1, std::integral Int2>
+    NDSPAN_INLINE void unpack_idx_impl(size_t offset, Int1& i, Int2& j) const {
         if constexpr (C > 0) {
             i = offset/C;
             j = offset % C;
@@ -406,9 +411,9 @@ public:
 
 
 template<size_t... DIMS>
-class ColumnMajorSpan : public StridedNdSpan<ColumnMajorSpan<DIMS...>, DIMS...>{
+class ColumnMajorSpan : public detail::StridedNdSpan<ColumnMajorSpan<DIMS...>, DIMS...>{
 
-    using Base = StridedNdSpan<ColumnMajorSpan<DIMS...>, DIMS...>;
+    using Base = detail::StridedNdSpan<ColumnMajorSpan<DIMS...>, DIMS...>;
 
 public:
 
@@ -416,10 +421,10 @@ public:
 
     DEFAULT_RULE_OF_FOUR(ColumnMajorSpan)
     
-    template<INT_T Int>
+    template<std::integral Int>
     explicit ColumnMajorSpan(const Int* shape, size_t ndim) : Base(shape, ndim) {}
 
-    template<INT_T... Args>
+    template<std::integral... Args>
     explicit constexpr ColumnMajorSpan(Args... shape) : Base(shape...){}
 
     template<typename StrideType, typename ShapeType>
@@ -432,8 +437,8 @@ public:
     }
 
     template<typename STRIDE_T, typename  SHAPE_T, typename... Idx>
-    INLINE static void strided_unpack(size_t offset, const STRIDE_T& strides, const SHAPE_T& shape, Idx&... idx) noexcept {
-        EXPAND(size_t, sizeof...(idx), I,
+    NDSPAN_INLINE static void strided_unpack(size_t offset, const STRIDE_T& strides, const SHAPE_T& shape, Idx&... idx) noexcept {
+        NDSPAN_EXPAND(sizeof...(idx), I,
             ((idx = offset % shape[I],
             offset /= shape[I]), ...);
         );
@@ -443,9 +448,9 @@ public:
 
 
 template<size_t R, size_t C>
-class ColumnMajorSpan<R, C> : public StridedNdSpan<ColumnMajorSpan<R, C>, R, C>{
+class ColumnMajorSpan<R, C> : public detail::StridedNdSpan<ColumnMajorSpan<R, C>, R, C>{
 
-    using Base = StridedNdSpan<ColumnMajorSpan<R, C>, R, C>;
+    using Base = detail::StridedNdSpan<ColumnMajorSpan<R, C>, R, C>;
 
 public:
 
@@ -453,14 +458,14 @@ public:
 
     DEFAULT_RULE_OF_FOUR(ColumnMajorSpan)
     
-    template<INT_T Int>
+    template<std::integral Int>
     explicit ColumnMajorSpan(const Int* shape, size_t ndim) : Base(shape, ndim) {}
 
-    template<INT_T... Args>
+    template<std::integral... Args>
     explicit constexpr ColumnMajorSpan(Args... shape) : Base(shape...){}
 
-    template<INT_T Int1, INT_T Int2>
-    INLINE constexpr size_t offset_impl(Int1 i, Int2 j) const {
+    template<std::integral Int1, std::integral Int2>
+    NDSPAN_INLINE constexpr size_t offset_impl(Int1 i, Int2 j) const {
         if constexpr (R > 0){
             return j*R + i;
         }else {
@@ -468,13 +473,13 @@ public:
         }
     }
 
-    template<INT_T Idx>
-    INLINE constexpr size_t getOffset_impl(const Idx* idx_ptr) const noexcept{
+    template<std::integral Idx>
+    NDSPAN_INLINE constexpr size_t getOffset_impl(const Idx* idx_ptr) const noexcept{
         return offset_impl(idx_ptr[0], idx_ptr[1]);
     }
 
-    template<INT_T Int1, INT_T Int2>
-    INLINE void unpack_idx_impl(size_t offset, Int1& i, Int2& j) const {
+    template<std::integral Int1, std::integral Int2>
+    NDSPAN_INLINE void unpack_idx_impl(size_t offset, Int1& i, Int2& j) const {
         if constexpr (R > 0) {
             i = offset % R;
             j = offset / R;

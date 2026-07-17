@@ -5,6 +5,7 @@
 
 namespace ndspan{
 
+namespace detail{
 
 template<typename Derived, typename T, Layout L, size_t... DIMS>
 class AbstractArray : public AbstractMutView<Derived, L, T, DIMS...>{
@@ -23,7 +24,7 @@ protected:
 
     DEFAULT_RULE_OF_FOUR(AbstractArray)
 
-    template<INT_T Int>
+    template<std::integral Int>
     explicit AbstractArray(const Int* shape, size_t ndim) : Base(shape, ndim) {}
 
     ~AbstractArray() = default;
@@ -36,12 +37,14 @@ protected:
 
 };
 
+} // namespace detail
+
 
 template<typename T, Layout L, size_t... DIMS>
-class DynamicArray : public AbstractArray<DynamicArray<T, L, DIMS...>, T, L, DIMS...>{
+class DynamicArray : public detail::AbstractArray<DynamicArray<T, L, DIMS...>, T, L, DIMS...>{
 
     using CLS = DynamicArray<T, L, DIMS...>;
-    using Base = AbstractArray<DynamicArray<T, L, DIMS...>, T, L, DIMS...>;
+    using Base = detail::AbstractArray<DynamicArray<T, L, DIMS...>, T, L, DIMS...>;
 
 public:
 
@@ -56,14 +59,14 @@ public:
         this->_copy_from(data);
     }
 
-    template<INT_T... Args>
+    template<std::integral... Args>
     explicit DynamicArray(Args... shape) : Base(shape...) {
         if (this->size() > 0 && this->size() <= static_cast<size_t>(PTRDIFF_MAX)){
             _data = new T[this->size()];
         }
     }
 
-    template<INT_T Int>
+    template<std::integral Int>
     explicit DynamicArray(const T* data, const Int* shape, size_t ndim) : Base(shape, ndim){
         if (this->size() > 0 && this->size() <= static_cast<size_t>(PTRDIFF_MAX)){
             _data = new T[this->size()];
@@ -73,7 +76,7 @@ public:
         }
     }
 
-    template<INT_T Int>
+    template<std::integral Int>
     explicit DynamicArray(T* data, const Int* shape, size_t ndim, bool own_it) : Base(shape, ndim){
         if (own_it){
             _data = data;
@@ -83,14 +86,14 @@ public:
         }
     }
 
-    template<INT_T... Args>
+    template<std::integral... Args>
     explicit DynamicArray(const T* data, Args... shape) : DynamicArray(shape...){
         this->_copy_from(data);
     }
 
     DynamicArray(std::initializer_list<T> array) requires (RANK<2 && (N == 0)) : DynamicArray(array.begin(), array.size()) {}
 
-    DynamicArray(std::initializer_list<T> array) requires (N>0) : DynamicArray(array.begin(), (_validate_size<DIMS...>(array.size()), DIMS)...) {}
+    DynamicArray(std::initializer_list<T> array) requires (N>0) : DynamicArray(array.begin(), (detail::validate_size<DIMS...>(array.size()), DIMS)...) {}
 
     //COPY CONSTRUCTOR
     DynamicArray(const DynamicArray& other) : Base(static_cast<const Base&>(other)), _data((other.size() > 0 && other.size() <= static_cast<size_t>(PTRDIFF_MAX)) ? new T[other.size()] : nullptr) {
@@ -128,15 +131,15 @@ public:
         _data = nullptr;
     }
 
-    INLINE const T* data() const{
+    NDSPAN_INLINE const T* data() const{
         return _data;
     }
 
-    INLINE T* data() {
+    NDSPAN_INLINE T* data() {
         return _data;
     }
 
-    template<INT_T Int>
+    template<std::integral Int>
     void resize(const Int* newsize, size_t ndim){
         size_t current_size = this->size();
         Base::resize(newsize, ndim);//if the new size is invalid, this will throw an error before the execution moves to resizing the _data below.
@@ -152,7 +155,7 @@ public:
         }
     }
 
-    template<INT_T... Size>
+    template<std::integral... Size>
     void resize(Size... newsize){
         size_t current_size = this->size();
         Base::resize(newsize...);
@@ -178,7 +181,7 @@ public:
 private:
 
     template<size_t... I>
-    INLINE void _reset_base_to_zero(std::index_sequence<I...>){
+    NDSPAN_INLINE void _reset_base_to_zero(std::index_sequence<I...>){
         if constexpr (Base::N == 0) {
             Base::resize((Base::SHAPE[I])...);
         }
@@ -190,10 +193,10 @@ private:
 
 
 template<typename T, Layout L, size_t... DIMS>
-class StackArray : public AbstractArray<StackArray<T, L, DIMS...>, T, L, DIMS...>{
+class StackArray : public detail::AbstractArray<StackArray<T, L, DIMS...>, T, L, DIMS...>{
 
     using CLS = StackArray<T, L, DIMS...>;
-    using Base = AbstractArray<StackArray<T, L, DIMS...>, T, L, DIMS...>;
+    using Base = detail::AbstractArray<StackArray<T, L, DIMS...>, T, L, DIMS...>;
 
 public:
 
@@ -210,17 +213,17 @@ public:
         ndspan::copy_array<T, N>(this->data(), data, this->size());
     }
 
-    template<INT_T... Args>
+    template<std::integral... Args>
     constexpr explicit StackArray(const T* data, Args... shape) : StackArray(shape...){
         ndspan::copy_array<T, N>(this->data(), data, this->size());
     }
 
-    template<INT_T Int>
+    template<std::integral Int>
     constexpr explicit StackArray(const T* data, const Int* shape, size_t ndim) : StackArray(shape, ndim){
         ndspan::copy_array<T, N>(this->data(), data, this->size());
     }
 
-    constexpr StackArray(std::initializer_list<T> array) : StackArray(array.begin(), (_validate_size<DIMS...>(array.size()), DIMS)...) {}
+    constexpr StackArray(std::initializer_list<T> array) : StackArray(array.begin(), (detail::validate_size<DIMS...>(array.size()), DIMS)...) {}
 
     //COPY CONSTRUCTORS
     constexpr StackArray(const StackArray& other) : Base(static_cast<const Base&>(other)) {
@@ -252,11 +255,11 @@ public:
 
     ~StackArray() = default;
 
-    INLINE constexpr const T* data() const{
+    NDSPAN_INLINE constexpr const T* data() const{
         return _data;
     }
 
-    INLINE constexpr T* data() {
+    NDSPAN_INLINE constexpr T* data() {
         return _data;
     }
 
@@ -269,6 +272,7 @@ private:
 
 enum class Allocation : std::uint8_t {Heap, Stack, Auto};
 
+namespace detail{
 
 template <Allocation Alloc, Layout L, typename T, size_t... DIMS>
 struct ArrayAllocMap;
@@ -287,12 +291,14 @@ struct ArrayAllocMap<Allocation::Auto, L, T, DIMS...> {
     using type = std::conditional_t<(((DIMS * ...) == 0)), DynamicArray<T, L, DIMS...>, StackArray<T, L, DIMS...>>; 
 };
 
+} // namespace detail
+
 
 
 template <typename T, Allocation Alloc = Allocation::Auto, Layout L = Layout::C, size_t... DIMS>
-class Array : public ArrayAllocMap<Alloc, L, T, DIMS...>::type{
+class Array : public detail::ArrayAllocMap<Alloc, L, T, DIMS...>::type{
 
-    using Base = ArrayAllocMap<Alloc, L, T, DIMS...>::type;
+    using Base = detail::ArrayAllocMap<Alloc, L, T, DIMS...>::type;
 
 public:
 
@@ -305,49 +311,49 @@ public:
     //=============================== ACCESSORS ===================================
 
     // NdSpan interface
-    INLINE constexpr size_t size() const{
+    NDSPAN_INLINE constexpr size_t size() const{
         return Base::size();
     }
 
-    INLINE constexpr size_t ndim() const {
+    NDSPAN_INLINE constexpr size_t ndim() const {
         return Base::ndim();
     }
 
-    INLINE const size_t* shape() const {
+    NDSPAN_INLINE const size_t* shape() const {
         return Base::shape();
     }
 
-    template<INT_T IDX_T>
-    INLINE constexpr size_t shape(IDX_T i) const {
+    template<std::integral IDX_T>
+    NDSPAN_INLINE constexpr size_t shape(IDX_T i) const {
         return Base::shape(i);
     }
 
-    template<INT_T... Idx>
-    INLINE constexpr size_t offset(Idx... idx) const noexcept {
+    template<std::integral... Idx>
+    NDSPAN_INLINE constexpr size_t offset(Idx... idx) const noexcept {
         return Base::offset(idx...);
     }
 
-    template<INT_T Int>
-    INLINE constexpr size_t getOffset(const Int* idx_ptr) const noexcept{
+    template<std::integral Int>
+    NDSPAN_INLINE constexpr size_t getOffset(const Int* idx_ptr) const noexcept{
         return Base::getOffset(idx_ptr);
     }
 
-    INLINE const T& getElem(const size_t* idx_ptr) const{
+    NDSPAN_INLINE const T& getElem(const size_t* idx_ptr) const{
         return Base::getElem(idx_ptr);
     }
 
     template<size_t Nd>
-    INLINE constexpr size_t offset(const std::array<size_t, Nd>& idx) const noexcept {
+    NDSPAN_INLINE constexpr size_t offset(const std::array<size_t, Nd>& idx) const noexcept {
         return Base::offset(idx);
     }
 
-    template<INT_T... Idx>
-    INLINE void unpack_idx(size_t offset, Idx&... idx) const noexcept{
+    template<std::integral... Idx>
+    NDSPAN_INLINE void unpack_idx(size_t offset, Idx&... idx) const noexcept{
         Base::unpack_idx(offset, idx...);
     }
 
     template<std::integral INT, size_t Nd>
-    INLINE void unpack_idx(size_t offset, std::array<INT, Nd>& idx) const noexcept{
+    NDSPAN_INLINE void unpack_idx(size_t offset, std::array<INT, Nd>& idx) const noexcept{
         Base::unpack_idx(offset, idx);
     }
 
@@ -355,21 +361,21 @@ public:
     const_iterator begin() const { return Base::begin(); }
     const_iterator end() const { return Base::end(); }
 
-    INLINE const T* data() const{
+    NDSPAN_INLINE const T* data() const{
         return Base::data();
     }
 
-    template<INT_T... Int>
-    INLINE const T* ptr(Int... idx) const{
+    template<std::integral... Int>
+    NDSPAN_INLINE const T* ptr(Int... idx) const{
         return Base::ptr(idx...);
     }
 
-    INLINE View<T, L, DIMS...> view() const{
+    NDSPAN_INLINE View<T, L, DIMS...> view() const{
         if constexpr (Base::N > 0){
             return View<T, L, DIMS...>(this->data());
         }else if (Base::RANK > 0) {
             const size_t* s = this->shape();
-            return EXPAND(size_t, Base::RANK, I,
+            return NDSPAN_EXPAND(Base::RANK, I,
                 View<T, L, DIMS...>(this->data(), s[I]...);
             );
         }else {
@@ -377,22 +383,22 @@ public:
         }
     }
 
-    INLINE const T& back() const{
+    NDSPAN_INLINE const T& back() const{
         return Base::back();
     }
 
-    template<INT_T... Idx>
-    INLINE constexpr const T& operator()(Idx... idx) const {
+    template<std::integral... Idx>
+    NDSPAN_INLINE constexpr const T& operator()(Idx... idx) const {
         return Base::operator()(idx...);
     }
 
     template<typename... Idx>
-    INLINE auto operator()(Idx... i) const{
+    NDSPAN_INLINE auto operator()(Idx... i) const{
         return Base::operator()(i...);
     }
 
-    template<INT_T IDX_T>
-    INLINE constexpr const T& operator[](IDX_T i) const{
+    template<std::integral IDX_T>
+    NDSPAN_INLINE constexpr const T& operator[](IDX_T i) const{
         return Base::operator[](i);
     }
 
@@ -400,23 +406,23 @@ public:
     //=============================== MODIFIERS ===================================
 
     // NdSpan interface
-    template<INT_T... Args>
-    INLINE void reshape(Args... shape){
+    template<std::integral... Args>
+    NDSPAN_INLINE void reshape(Args... shape){
         Base::reshape(shape...);
     }
 
-    template<INT_T... Args>
-    INLINE void constexpr resize(Args... shape){
+    template<std::integral... Args>
+    NDSPAN_INLINE void constexpr resize(Args... shape){
         Base::resize(shape...);
     }
 
-    template<INT_T Int>
-    INLINE void reshape(const Int* shape, size_t ndim){
+    template<std::integral Int>
+    NDSPAN_INLINE void reshape(const Int* shape, size_t ndim){
         Base::reshape(shape, ndim);
     }
 
-    template<INT_T Int>
-    INLINE void resize(const Int* shape, size_t ndim){
+    template<std::integral Int>
+    NDSPAN_INLINE void resize(const Int* shape, size_t ndim){
         Base::resize(shape, ndim);
     }
 
@@ -426,36 +432,36 @@ public:
     iterator begin() { return Base::data(); }
     iterator end()   { return Base::end(); }
 
-    INLINE T* data(){
+    NDSPAN_INLINE T* data(){
         return Base::data();
     }
 
-    template<INT_T... Idx>
-    INLINE constexpr T& operator()(Idx... idx) {
+    template<std::integral... Idx>
+    NDSPAN_INLINE constexpr T& operator()(Idx... idx) {
         return Base::operator()(idx...);
     }
 
     template<typename... Idx>
-    INLINE auto operator()(Idx... i){
+    NDSPAN_INLINE auto operator()(Idx... i){
         return Base::operator()(i...);
     }
 
-    template<INT_T IDX_T>
-    INLINE constexpr T& operator[](IDX_T i){
+    template<std::integral IDX_T>
+    NDSPAN_INLINE constexpr T& operator[](IDX_T i){
         return Base::operator[](i);
     }
 
-    template<INT_T Int>
-    INLINE constexpr T& getElem(const Int* idx_ptr) noexcept{
+    template<std::integral Int>
+    NDSPAN_INLINE constexpr T& getElem(const Int* idx_ptr) noexcept{
         return Base::getElem(idx_ptr);
     }
 
-    template<INT_T... Int>
-    INLINE constexpr T* ptr(Int... idx){
+    template<std::integral... Int>
+    NDSPAN_INLINE constexpr T* ptr(Int... idx){
         return Base::ptr(idx...);
     }
 
-    INLINE Array& fill(const T& value){
+    NDSPAN_INLINE Array& fill(const T& value){
         Base::fill(value);
         return *this;
     }
@@ -463,7 +469,7 @@ public:
 };
 
 
-
+namespace detail{
 
 template <typename T, size_t Rank, Layout L = Layout::C>
 struct HelperNdArray
@@ -480,11 +486,16 @@ struct HelperNdArray
     using ViewType = decltype(make_view(std::make_index_sequence<Rank>{}));
 };
 
+
+} // namespace detail
+
+
+
 template <typename T, size_t Rank, Allocation Alloc = Allocation::Auto, Layout L = Layout::C>
-using NdArray = HelperNdArray<T, Rank, L>::template type<Alloc>;
+using NdArray = detail::HelperNdArray<T, Rank, L>::template type<Alloc>;
 
 template <typename T, size_t Rank, Layout L = Layout::C>
-using NdView = HelperNdArray<T, Rank, L>::ViewType;
+using NdView = detail::HelperNdArray<T, Rank, L>::ViewType;
 
 
 template <typename T, size_t SIZE=0, Allocation Alloc = Allocation::Auto>
@@ -501,9 +512,9 @@ public:
 
     DEFAULT_RULE_OF_FOUR(Array2D)
 
-    INLINE size_t Nrows() const {return this->shape(0);}
+    NDSPAN_INLINE size_t Nrows() const {return this->shape(0);}
 
-    INLINE size_t Ncols() const {return this->shape(1);}
+    NDSPAN_INLINE size_t Ncols() const {return this->shape(1);}
 
     void repr(std::ostream& out, int digits = 8) const {
         if (this->size() == 0) {
