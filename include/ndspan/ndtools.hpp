@@ -30,12 +30,12 @@
 #define NDSPAN_BOUNDS_ASSERT(i, n) assert((i>=0 && size_t(i)<size_t(n)) && "Index out of bounds")
 
 #define NDSPAN_FOR_LOOP(I, N, ...) \
-ForEach<N>([&]<size_t I>() __attribute__((always_inline, flatten)) { \
+ndspan::ForEach<N>([&]<size_t I>() __attribute__((always_inline, flatten)) { \
     __VA_ARGS__ \
 })
 
 #define NDSPAN_EXPAND(N, I, ...) \
-Expand<N>([&]<size_t... I>() __attribute__((always_inline, flatten)) { \
+ndspan::Expand<N>([&]<size_t... I>() __attribute__((always_inline, flatten)) { \
     __VA_ARGS__ \
 })
 
