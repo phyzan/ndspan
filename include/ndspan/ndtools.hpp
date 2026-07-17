@@ -32,7 +32,7 @@
 #define NDSPAN_FOR_LOOP(I, N, ...) \
 ForEach<N>([&]<size_t I>() __attribute__((always_inline, flatten)) { \
     __VA_ARGS__ \
-}, std::forward<Args>(args)...)
+})
 
 #define NDSPAN_EXPAND(N, I, ...) \
 Expand<N>([&]<size_t... I>() __attribute__((always_inline, flatten)) { \
@@ -80,11 +80,15 @@ NDSPAN_INLINE void ForEach(F&& f, Args&&... args){
 }
 
 
-template<typename F, size_t N, size_t... I>
+template<typename F, size_t... I>
+NDSPAN_INLINE decltype(auto) Expand_impl(F&& f, std::index_sequence<I...>){
+    return f.template operator()<I...>();
+}
+
+
+template<size_t N, typename F>
 NDSPAN_INLINE decltype(auto) Expand(F&& f){
-    return [&]<size_t... J>(std::index_sequence<J...>) NDSPAN_LAMBDA_INLINE {
-        return f.template operator()<I...>();
-    }(std::make_index_sequence<N>{});
+    return Expand_impl(std::forward<F>(f), std::make_index_sequence<N>{});
 }
 
 
