@@ -48,7 +48,7 @@ using copy_const_t = std::conditional_t<std::is_const_v<From>, const To, To>;
 
 
 template<size_t I, std::size_t N, typename F, typename... Args>
-NDSPAN_INLINE void for_each_impl(F& f, Args&... args){
+NDSPAN_INLINE constexpr void for_each_impl(F& f, Args&... args){
     if constexpr (I < N) {
         f.template operator()<I>(args...);
         for_each_impl<I + 1, N>(f, args...);
@@ -75,19 +75,19 @@ constexpr size_t validate_size(size_t size){
 } // namespace detail
 
 template<size_t N, typename F, typename... Args>
-NDSPAN_INLINE void ForEach(F&& f, Args&&... args){
+NDSPAN_INLINE constexpr void ForEach(F&& f, Args&&... args){
     detail::for_each_impl<0, N>(f, args...);
 }
 
 
 template<typename F, size_t... I>
-NDSPAN_INLINE decltype(auto) Expand_impl(F&& f, std::index_sequence<I...>){
+NDSPAN_INLINE constexpr decltype(auto) Expand_impl(F&& f, std::index_sequence<I...>){
     return f.template operator()<I...>();
 }
 
 
 template<size_t N, typename F>
-NDSPAN_INLINE decltype(auto) Expand(F&& f){
+NDSPAN_INLINE constexpr decltype(auto) Expand(F&& f){
     return Expand_impl(std::forward<F>(f), std::make_index_sequence<N>{});
 }
 
@@ -99,7 +99,7 @@ NDSPAN_INLINE constexpr decltype(auto) pack_elem(Args&&... args) {
 }
 
 template<typename Iterable>
-size_t prod(const Iterable& array){
+NDSPAN_INLINE constexpr size_t prod(const Iterable& array){
     if (array.size() == 0){
         return 0;
     }
@@ -111,7 +111,7 @@ size_t prod(const Iterable& array){
 }
 
 template<std::integral Int>
-size_t prod(const Int* array, size_t size){
+NDSPAN_INLINE constexpr size_t prod(const Int* array, size_t size){
     if (size == 0){
         return 0;
     }
@@ -124,7 +124,7 @@ size_t prod(const Int* array, size_t size){
 
 
 template<typename T>
-NDSPAN_INLINE void constexpr copy_array(T* dest, const T* src, size_t size){
+NDSPAN_INLINE constexpr void copy_array(T* dest, const T* src, size_t size){
     if (size==0) {return;}
     if constexpr (std::is_trivially_copyable_v<T>){
         std::memcpy(dest, src, size*sizeof(T));
@@ -135,7 +135,7 @@ NDSPAN_INLINE void constexpr copy_array(T* dest, const T* src, size_t size){
 }
 
 template<typename T, size_t N>
-NDSPAN_INLINE void constexpr copy_array(T* dest, const T* src, size_t size){
+NDSPAN_INLINE constexpr void copy_array(T* dest, const T* src, size_t size){
     assert((size == N) && "Size must match array template size in ndspan::copy_array");
     if (size==0) {return;}
     std::copy(src, src+size, dest);
