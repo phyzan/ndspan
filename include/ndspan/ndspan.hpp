@@ -61,8 +61,10 @@ public:
     template<std::integral... Idx>
     NDSPAN_INLINE constexpr size_t offset(Idx... idx) const noexcept {
         //dimension and range check in debug mode. They will not be compiled when -DNDEBUG is enabled
-        _dim_check(idx...);
-        _bounds_check(idx...);
+        _dim_check(this->ndim(), idx...);
+        NDSPAN_EXPAND(sizeof...(idx), I,
+            assert(((idx >= 0 && size_t(idx) < this->shape(I)) && ...) && "Out of bounds");
+        );
         return offset_impl(idx...);
     }
 
@@ -82,7 +84,7 @@ public:
     template<std::integral... Idx>
     NDSPAN_INLINE void unpack_idx(size_t offset, Idx&... idx) const noexcept{
         //dimension and offset check
-        _dim_check(idx...);
+        _dim_check(this->ndim(), idx...);
         _offset_check(offset);
         this->unpack_idx_impl(offset, idx...);
     }
@@ -155,21 +157,14 @@ protected:
         return true;
     }
 
-    template<std::integral... IntType>
-    NDSPAN_INLINE constexpr void _bounds_check(IntType... idx) const {
-        NDSPAN_EXPAND(sizeof...(idx), I,
-            assert(((idx >= 0 && size_t(idx) < this->shape(I)) && ...) && "Out of bounds");
-        );
-    }
-
     template<std::integral... Idx>
-    NDSPAN_INLINE constexpr void _dim_check(Idx... idx) const {
+    NDSPAN_INLINE constexpr static void _dim_check(size_t ndim, Idx... idx) {
         //dimension check
         if constexpr (RANK > 0){
             static_assert(sizeof...(idx) == RANK, "Incorrect number of indices");
         }
         else if constexpr (RANK == 0){
-            assert(sizeof...(idx) == this->ndim() && "Incorrect number of indices");
+            assert(sizeof...(idx) == ndim && "Incorrect number of indices");
         }
     }
 

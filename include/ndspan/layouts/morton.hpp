@@ -136,8 +136,11 @@ public:
 
     template<std::integral... Coords>
     inline constexpr size_t morton_index(Coords... idx) const {
-        this->_dim_check(idx...);
-        this->_bounds_check(std::make_index_sequence<sizeof...(idx)>(), idx...);
+        this->_dim_check(this->ndim(), idx...);
+
+        NDSPAN_EXPAND(sizeof...(idx), I,
+            assert(((idx >= 0 && size_t(idx) < this->shape(I)) && ...) && "Out of bounds");
+        );
         size_t result = 0;
         for (size_t bit = 0; bit < _bits; ++bit) {
             result |= _dyn_morton_dims_loop(bit, std::make_index_sequence<sizeof...(idx)>{}, idx...);
