@@ -31,7 +31,7 @@ protected:
 
     void _copy_from(const T* data){
         if (this->size() > 0){
-            ndspan::copy_array(this->data(), data, this->size());
+            std::copy(data, data + this->size(), this->data());
         }
     }
 
@@ -72,7 +72,7 @@ public:
             _data = new T[this->size()];
         }
         if (data != nullptr){
-            ndspan::copy_array<T>(this->data(), data, this->size());
+            std::copy(data, data + this->size(), this->data());
         }
     }
 
@@ -82,7 +82,7 @@ public:
             _data = data;
         }else if (this->size() > 0 && this->size() <= static_cast<size_t>(PTRDIFF_MAX)){
             _data = new T[this->size()];
-            ndspan::copy_array<T>(this->data(), data, this->size());
+            std::copy(data, data + this->size(), this->data());
         }
     }
 
@@ -97,7 +97,7 @@ public:
 
     //COPY CONSTRUCTOR
     DynamicArray(const DynamicArray& other) : Base(static_cast<const Base&>(other)), _data((other.size() > 0 && other.size() <= static_cast<size_t>(PTRDIFF_MAX)) ? new T[other.size()] : nullptr) {
-        ndspan::copy_array(this->data(), other.data(), this->size());
+        std::copy(other.data(), other.data() + this->size(), this->data());
     }
 
     //MOVE CONSTRUCTOR
@@ -111,7 +111,7 @@ public:
                 _data = (other.size() > 0 && other.size() <= static_cast<size_t>(PTRDIFF_MAX)) ? new T[other.size()] : nullptr;
             }
             Base::operator=(other);
-            ndspan::copy_array(this->data(), other.data(), this->size());
+            std::copy(other.data(), other.data() + this->size(), this->data());
         }
         return *this;
     }
@@ -210,36 +210,36 @@ public:
     StackArray() = default;
 
     constexpr explicit StackArray(const T* data) : Base(){
-        ndspan::copy_array<T, N>(this->data(), data, this->size());
+        std::copy(data, data + this->size(), this->data());
     }
 
     template<std::integral... Args>
     constexpr explicit StackArray(const T* data, Args... shape) : StackArray(shape...){
-        ndspan::copy_array<T, N>(this->data(), data, this->size());
+        std::copy(data, data + this->size(), this->data());
     }
 
     template<std::integral Int>
     constexpr explicit StackArray(const T* data, const Int* shape, size_t ndim) : StackArray(shape, ndim){
-        ndspan::copy_array<T, N>(this->data(), data, this->size());
+        std::copy(data, data + this->size(), this->data());
     }
 
     constexpr StackArray(std::initializer_list<T> array) : StackArray(array.begin(), (detail::validate_size<DIMS...>(array.size()), DIMS)...) {}
 
     //COPY CONSTRUCTORS
     constexpr StackArray(const StackArray& other) : Base(static_cast<const Base&>(other)) {
-        ndspan::copy_array<T, N>(this->data(), other.data(), this->size());
+        std::copy(other.data(), other.data() + this->size(), this->data());
     }
 
     //MOVE CONSTRUCTORS
     constexpr StackArray(StackArray&& other) noexcept : Base(static_cast<Base&&>(std::move(other))) {
-        ndspan::copy_array<T, N>(this->data(), other.data(), this->size());
+        std::copy(other.data(), other.data() + this->size(), this->data());
     }
 
     //ASSIGNMENT OPERATORS
     StackArray& operator=(const StackArray& other) {
         if (&other != this){
             Base::operator=(other);
-            ndspan::copy_array<T, N>(this->data(), other.data(), this->size());
+            std::copy(other.data(), other.data() + this->size(), this->data());
         }
         return *this;
     }
@@ -248,7 +248,7 @@ public:
     StackArray& operator=(StackArray&& other) noexcept {
         if (&other != this){
             Base::operator=(std::move(other));
-            ndspan::copy_array<T, N>(this->data(), other.data(), this->size());
+            std::copy(other.data(), other.data() + this->size(), this->data());
         }
         return *this;
     }
@@ -256,16 +256,16 @@ public:
     ~StackArray() = default;
 
     NDSPAN_INLINE constexpr const T* data() const{
-        return _data;
+        return _data.data();
     }
 
     NDSPAN_INLINE constexpr T* data() {
-        return _data;
+        return _data.data();
     }
 
 private:
 
-    T _data[N]{}; //should initialize all values to zero
+    std::array<T, N> _data;
 
 };
 
