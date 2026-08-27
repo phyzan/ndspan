@@ -124,33 +124,6 @@ NDSPAN_INLINE constexpr size_t prod(const Int* array, size_t size){
 
 
 template<typename T>
-NDSPAN_INLINE constexpr void copy_array(T* dest, const T* src, size_t size){
-    if (size==0) {return;}
-    if constexpr (std::is_trivially_copyable_v<T>){
-        std::memcpy(dest, src, size*sizeof(T));
-    }
-    else{
-        std::copy(src, src+size, dest);
-    }
-}
-
-template<typename T, size_t N>
-NDSPAN_INLINE constexpr void copy_array(T* dest, const T* src, size_t size){
-    assert((size == N) && "Size must match array template size in ndspan::copy_array");
-    if (size==0) {return;}
-    std::copy(src, src+size, dest);
-}
-
-template<std::integral INT_DST, std::integral INT_SRC>
-requires (!std::same_as<INT_DST, INT_SRC>)
-NDSPAN_INLINE void copy_array(INT_DST* dest, const INT_SRC* src, size_t size) {
-    if (size == 0) {return;}
-    for (size_t i = 0; i < size; i++) {
-        dest[i] = src[i];
-    }
-}
-
-template<typename T>
 NDSPAN_INLINE bool equal_arrays(const T* a, const T* b, size_t size){
     for (size_t i=0; i<size; i++){
         if (a[i]!=b[i]) {return false;}

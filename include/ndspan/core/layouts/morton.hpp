@@ -2,8 +2,7 @@
 
 #include <unordered_map>
 #include <array>
-#include "../layouts/standard_layouts.hpp"
-#include "../ndspan.hpp"
+#include "standard_layouts.hpp"
 
 namespace ndspan{
 
