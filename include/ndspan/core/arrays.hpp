@@ -183,7 +183,7 @@ private:
     template<size_t... I>
     NDSPAN_INLINE void _reset_base_to_zero(std::index_sequence<I...>){
         if constexpr (Base::N == 0) {
-            Base::resize((Base::SHAPE[I])...);
+            Base::resize(Base::SHAPE[I]...);
         }
     }
 
@@ -225,34 +225,10 @@ public:
 
     constexpr StackArray(std::initializer_list<T> array) : StackArray(array.begin(), (detail::validate_size<DIMS...>(array.size()), DIMS)...) {}
 
-    //COPY CONSTRUCTORS
-    constexpr StackArray(const StackArray& other) : Base(static_cast<const Base&>(other)) {
-        std::copy(other.data(), other.data() + this->size(), this->data());
-    }
-
-    //MOVE CONSTRUCTORS
-    constexpr StackArray(StackArray&& other) noexcept : Base(static_cast<Base&&>(std::move(other))) {
-        std::copy(other.data(), other.data() + this->size(), this->data());
-    }
-
-    //ASSIGNMENT OPERATORS
-    StackArray& operator=(const StackArray& other) {
-        if (&other != this){
-            Base::operator=(other);
-            std::copy(other.data(), other.data() + this->size(), this->data());
-        }
-        return *this;
-    }
-
-    //MOVE-ASSIGNMENT OPERATORS
-    StackArray& operator=(StackArray&& other) noexcept {
-        if (&other != this){
-            Base::operator=(std::move(other));
-            std::copy(other.data(), other.data() + this->size(), this->data());
-        }
-        return *this;
-    }
-
+    StackArray(const StackArray&) = default;
+    StackArray(StackArray&&) noexcept = default;
+    StackArray& operator=(const StackArray& other) = default;
+    StackArray& operator=(StackArray&& other) noexcept = default;
     ~StackArray() = default;
 
     NDSPAN_INLINE constexpr const T* data() const{
