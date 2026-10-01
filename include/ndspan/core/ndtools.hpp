@@ -131,12 +131,6 @@ NDSPAN_INLINE bool equal_arrays(const T* a, const T* b, size_t size){
     return true;
 }
 
-
-template<typename T>
-NDSPAN_INLINE T abs(const T& x){
-    return x >= 0 ? x : -x;
-}
-
 template<typename T>
 inline constexpr T max(const T& a, const T& b) {
     return std::max<T>(a, b);
