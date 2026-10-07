@@ -51,26 +51,24 @@ public:
     inline static constexpr size_t N = (sizeof...(DIMS) == 0 ? 0 : (DIMS * ... * 1));
     inline static constexpr size_t RANK = sizeof...(DIMS);
 
-    DynamicArray() : Base() {
-        _data = (N > 0 ? new T[N] : nullptr);
-    }
+    // ============= Default constructors =============
+    DynamicArray() requires (N > 0) : Base(), data_(std::make_unique<T[]>(N)) {}
 
-    explicit DynamicArray(const T* data) requires (N>0) : DynamicArray(){
+    DynamicArray() requires (N == 0) : Base(), data_(nullptr) {}
+
+    // ============= Custom constructors =============
+    explicit DynamicArray(const T* data) requires (N > 0) : DynamicArray(){
         this->_copy_from(data);
     }
 
     template<std::integral... Args>
     explicit DynamicArray(Args... shape) : Base(shape...) {
-        if (this->size() > 0 && this->size() <= static_cast<size_t>(PTRDIFF_MAX)){
-            _data = new T[this->size()];
-        }
+        this->make_resize(0, this->size());
     }
 
     template<std::integral Int>
     explicit DynamicArray(const T* data, const Int* shape, size_t ndim) : Base(shape, ndim){
-        if (this->size() > 0 && this->size() <= static_cast<size_t>(PTRDIFF_MAX)){
-            _data = new T[this->size()];
-        }
+        this->make_resize(0, this->size());
         if (data != nullptr){
             std::copy(data, data + this->size(), this->data());
         }
@@ -79,9 +77,10 @@ public:
     template<std::integral Int>
     explicit DynamicArray(T* data, const Int* shape, size_t ndim, bool own_it) : Base(shape, ndim){
         if (own_it){
-            _data = data;
-        }else if (this->size() > 0 && this->size() <= static_cast<size_t>(PTRDIFF_MAX)){
-            _data = new T[this->size()];
+            //takes ownership of data, which must have been allocated with new T[]
+            data_.reset(data);
+        } else {
+            this->make_resize(0, this->size());
             std::copy(data, data + this->size(), this->data());
         }
     }
@@ -95,99 +94,84 @@ public:
 
     DynamicArray(std::initializer_list<T> array) requires (N>0) : DynamicArray(array.begin(), (detail::validate_size<DIMS...>(array.size()), DIMS)...) {}
 
+    // ============= Copy semantics =============
     //COPY CONSTRUCTOR
-    DynamicArray(const DynamicArray& other) : Base(static_cast<const Base&>(other)), _data((other.size() > 0 && other.size() <= static_cast<size_t>(PTRDIFF_MAX)) ? new T[other.size()] : nullptr) {
+    DynamicArray(const DynamicArray& other) : Base(other) {
+        this->make_resize(0, this->size());
         std::copy(other.data(), other.data() + this->size(), this->data());
     }
-
-    //MOVE CONSTRUCTOR
-    DynamicArray(DynamicArray&& other) noexcept : Base(static_cast<Base&&>(std::move(other))), _data(other.release()) {}
 
     //ASSIGNMENT OPERATOR
     DynamicArray& operator=(const DynamicArray& other) {
         if (&other != this){
-            if (this->size() != other.size()){
-                delete[] _data;
-                _data = (other.size() > 0 && other.size() <= static_cast<size_t>(PTRDIFF_MAX)) ? new T[other.size()] : nullptr;
-            }
+            this->make_resize(this->size(), other.size());
             Base::operator=(other);
             std::copy(other.data(), other.data() + this->size(), this->data());
         }
         return *this;
     }
 
+    // ============= Move semantics =============
+    //MOVE CONSTRUCTOR
+    DynamicArray(DynamicArray&& other) noexcept = default;
     //MOVE-ASSIGNMENT OPERATOR
-    DynamicArray& operator=(DynamicArray&& other) noexcept {
-        if (&other != this){
-            Base::operator=(std::move(other));
-            delete[] _data;
-            _data = other.release();
-        }
-        return *this;
-    }
+    DynamicArray& operator=(DynamicArray&& other) noexcept = default;
 
-    ~DynamicArray() {
-        delete[] _data;
-        _data = nullptr;
-    }
+    // ============= Destructor =============
+    ~DynamicArray() = default;
 
     NDSPAN_INLINE const T* data() const{
-        return _data;
+        return data_.get();
     }
 
     NDSPAN_INLINE T* data() {
-        return _data;
+        return data_.get();
     }
 
     template<std::integral Int>
     void resize(const Int* newsize, size_t ndim){
         size_t current_size = this->size();
-        Base::resize(newsize, ndim);//if the new size is invalid, this will throw an error before the execution moves to resizing the _data below.
-        size_t total_size = prod(newsize, ndim);
-        if (total_size != current_size){
-            delete[] _data;
-            if (total_size == 0 || total_size > static_cast<size_t>(PTRDIFF_MAX)){
-                _data = nullptr;
-            }
-            else{
-                _data = new T[this->size()];
-            }
-        }
+        Base::resize(newsize, ndim); //if the new shape is invalid, this throws before data_ is touched below.
+        size_t new_size = this->size();
+        this->make_resize(current_size, new_size);
     }
 
     template<std::integral... Size>
     void resize(Size... newsize){
         size_t current_size = this->size();
         Base::resize(newsize...);
-        size_t total_size = (newsize * ... * 1);
-        if (total_size != current_size){
-            delete[] _data;
-            if (total_size == 0 || total_size > static_cast<size_t>(PTRDIFF_MAX)){
-                _data = nullptr;
-            }
-            else{
-                _data = new T[this->size()];
-            }
-        }
+        size_t new_size = this->size();
+        this->make_resize(current_size, new_size);
     }
 
     T* release(){
-        T* res = _data;
-        _data = nullptr;
-        _reset_base_to_zero(std::make_index_sequence<Base::RANK>());
-        return res;
+        reset_base_to_zero(std::make_index_sequence<Base::RANK>());
+        return data_.release();
     }
 
 private:
 
+    void make_resize(size_t old_size, size_t new_size){
+        if (new_size != old_size){
+            //release first, so that a failed allocation leaves the array empty
+            //instead of holding a buffer that no longer matches the shape.
+            data_ = nullptr;
+            if (new_size > static_cast<size_t>(PTRDIFF_MAX)){
+                throw std::bad_array_new_length();
+            } else if (new_size > 0){
+                data_ = std::make_unique<T[]>(new_size);
+            }
+        }
+    }
+
     template<size_t... I>
-    NDSPAN_INLINE void _reset_base_to_zero(std::index_sequence<I...>){
+    NDSPAN_INLINE void reset_base_to_zero(std::index_sequence<I...>){
         if constexpr (Base::N == 0) {
             Base::resize(Base::SHAPE[I]...);
         }
     }
 
-    T* _data = nullptr;
+    std::unique_ptr<T[]> data_;
 
 };
 
