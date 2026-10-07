@@ -28,11 +28,21 @@ public:
 
     using Base::Base;
 
-    ZorderNdSpan() = default;
+    ZorderNdSpan(){
+        if constexpr (Base::N > 0){
+            //the shape is a compile time constant, so the lookup tables can be built right away
+            this->_rebuild_tables(Base::SHAPE.data(), Base::RANK);
+        }
+    }
 
     template<std::integral... Args>
-    explicit constexpr ZorderNdSpan(Args... shape) : Base(shape...), _strided_span(shape...){
+    explicit constexpr ZorderNdSpan(Args... shape) : Base(shape...){
         this->resize(shape...);
+    }
+
+    template<std::integral Int>
+    explicit ZorderNdSpan(const Int* shape, size_t ndim) : Base(shape, ndim){
+        this->resize(shape, ndim);
     }
 
     DEFAULT_RULE_OF_FOUR(ZorderNdSpan)
@@ -44,43 +54,20 @@ public:
     template<std::integral... Args>
     void constexpr resize(Args... shape){
         Base::resize(shape...); //now the shape and size are updated
-        size_t new_shape[sizeof...(shape)] = {static_cast<size_t>(shape)...};
         _strided_span.resize(shape...);
-        _bits = morton_bits(new_shape, sizeof...(shape));
-        _padded_size = padded_size(shape...);
-
-        _id_at_offset.clear();
-        _id_at_offset.shrink_to_fit();
-
-        _offset_at_id.clear();
-        _offset_at_id.shrink_to_fit();
-
-        if (this->size() > 0){
-            //resize maps
-            _id_at_offset.resize(this->size());
-            _offset_at_id.resize(this->size());
-
-            //temporary idx array to fill its values below
-            std::array<size_t, sizeof...(shape)> idx;
-            size_t I, true_idx = 0;
-            for (size_t padded_offset=0; padded_offset<_padded_size; padded_offset++){
-                //retrieve the (i, j, k) index of the padded grid
-                this->morton_unpack_idx_from_array(padded_offset, idx);
-
-                //check if we are inside the true grid
-                if (!(I=0) && ((idx[I++] < shape)&&...)){
-                    //means we are inside the true grid
-
-                    //retrieve id
-                    size_t id = _strided_span.offset(idx);
-
-                    //set values in the id<->offset maps
-                    _id_at_offset[true_idx] = id;
-                    _offset_at_id[id] = true_idx;
-                    true_idx++;
-                }
-            }
+        if constexpr (sizeof...(shape) == 0){
+            this->_rebuild_tables(static_cast<const size_t*>(nullptr), 0);
+        } else {
+            const size_t new_shape[sizeof...(shape)] = {static_cast<size_t>(shape)...};
+            this->_rebuild_tables(new_shape, sizeof...(shape));
         }
+    }
+
+    template<std::integral Int>
+    void resize(const Int* shape, size_t ndim){
+        Base::resize(shape, ndim); //now the shape and size are updated
+        _strided_span.resize(shape, ndim);
+        this->_rebuild_tables(shape, ndim);
     }
 
     template<std::integral... Idx>
@@ -105,7 +92,10 @@ public:
     static constexpr size_t morton_bits(const ShapeType& shape, size_t nd){
         size_t res = 0;
         for (size_t i = 0; i < nd; ++i) {
-            size_t n = shape[i] - 1;
+            if (shape[i] == 0){
+                continue; //an empty dim would underflow below, and makes the grid empty anyway
+            }
+            size_t n = size_t(shape[i]) - 1;
             size_t bits = 0;
             while (n >> bits) {++bits;}
             res = ndspan::max(bits, res);
@@ -116,16 +106,8 @@ public:
     template<std::integral... Args>
     NDSPAN_INLINE static constexpr size_t padded_size(Args... shape){
         static_assert(sizeof...(shape) > 0, "The padded_size function requires at least one argument");
-        if (((shape == 0)||...)){
-            return 0;
-        }
-        size_t tmp, p = 1;
-        size_t shape_arr[sizeof...(shape)] = {size_t(shape)...};
-        for (size_t i=0; i<sizeof...(shape);i++){
-            tmp = next_pow_of_2(shape_arr[i]);
-            p = ndspan::max(p, tmp);
-        }
-        return ((shape*0+p)*...);
+        const size_t shape_arr[sizeof...(shape)] = {size_t(shape)...};
+        return _padded_size_of(shape_arr, sizeof...(shape));
     }
 
     template<std::integral INT, size_t Nd>
@@ -190,8 +172,87 @@ private:
         return this->morton_unpack_idx(offset, idx[I]...);
     }
 
-    size_t _padded_size;
-    size_t _bits;
+    //the padded grid is a cube whose side is the next power of two of the largest dim
+    template<std::integral Int>
+    static constexpr size_t _padded_size_of(const Int* shape, size_t nd){
+        if (nd == 0){
+            return 0;
+        }
+        size_t p = 1;
+        for (size_t i = 0; i < nd; i++){
+            if (shape[i] == 0){
+                return 0;
+            }
+            p = ndspan::max(p, detail::next_pow_of_2(size_t(shape[i])));
+        }
+        size_t total = 1;
+        for (size_t i = 0; i < nd; i++){
+            total *= p;
+        }
+        return total;
+    }
+
+    //runtime counterpart of morton_unpack_idx, for a rank that is only known at runtime
+    NDSPAN_INLINE static constexpr void _morton_decode(size_t morton, size_t* idx, size_t nd, size_t bits) noexcept{
+        for (size_t a = 0; a < nd; ++a){
+            idx[a] = 0;
+        }
+        for (size_t bit = 0; bit < bits; ++bit){
+            for (size_t a = 0; a < nd; ++a){
+                idx[a] |= ((morton >> (bit*nd + a)) & size_t(1)) << bit;
+            }
+        }
+    }
+
+    //walks the padded z-order grid once and records the offset<->id mapping for the cells
+    //that fall inside the true grid. Every entry point funnels through here.
+    template<std::integral Int>
+    void _rebuild_tables(const Int* shape, size_t nd){
+        _bits = morton_bits(shape, nd);
+        _padded_size = _padded_size_of(shape, nd);
+
+        _id_at_offset.clear();
+        _id_at_offset.shrink_to_fit();
+
+        _offset_at_id.clear();
+        _offset_at_id.shrink_to_fit();
+
+        const size_t n = this->size();
+        if (n == 0 || nd == 0){
+            return;
+        }
+        assert(_bits*nd <= sizeof(size_t)*8 && "Z-order grid too large to index with a size_t");
+
+        _id_at_offset.resize(n);
+        _offset_at_id.resize(n);
+
+        std::vector<size_t> idx(nd);
+        size_t true_idx = 0;
+        for (size_t padded_offset = 0; padded_offset < _padded_size; padded_offset++){
+            //retrieve the (i, j, k) index of the padded grid
+            _morton_decode(padded_offset, idx.data(), nd, _bits);
+
+            //skip the cells of the padded grid that fall outside the true grid
+            bool inside = true;
+            for (size_t i = 0; i < nd; i++){
+                if (idx[i] >= size_t(shape[i])){
+                    inside = false;
+                    break;
+                }
+            }
+            if (inside){
+                const size_t id = _strided_span.getOffset(idx.data());
+                assert(id < n && "Z-order id out of range");
+                _id_at_offset[true_idx] = id;
+                _offset_at_id[id] = true_idx;
+                true_idx++;
+            }
+        }
+        assert(true_idx == n && "Z-order tables do not cover the whole grid");
+    }
+
+    size_t _padded_size = 0;
+    size_t _bits = 0;
     RowMajorSpan<DIMS...> _strided_span; //converts the index (i, j, ...) to a unique id (integer). The unique id continuously ranges from 0 up to (dim1*dim2*...*dimNd - 1)
     std::vector<size_t> _id_at_offset; 
     std::vector<size_t> _offset_at_id;

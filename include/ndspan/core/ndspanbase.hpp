@@ -1,5 +1,7 @@
 #pragma once
 
+
+#include <memory>
 #include "ndtools.hpp"
 
 namespace ndspan{
@@ -297,14 +299,15 @@ public:
 
     template<std::integral... Args>
     void constexpr reshape(Args... shape){
-        assert(((shape*...) == this->size()) && "Invalid new shape. The total size of the array is not conserved");
-        this->resize(shape...);
+        assert((size_t((shape*...)) == this->size()) && "Invalid new shape. The total size of the array is not conserved");
+        //THIS-> so that the derived layout rebuilds its strides for the new shape
+        THIS->resize(shape...);
     }
 
     template<std::integral Int>
     void reshape(const Int* shape, size_t ndim){
         assert((prod(shape, ndim) == this->size()) && "Invalid new shape. The total size of the array is not conserved");
-        this->resize(shape, ndim);
+        THIS->resize(shape, ndim);
     }
 
     NDSPAN_INLINE size_t size() const{
@@ -367,7 +370,7 @@ public:
 
     template<std::integral... Args>
     void constexpr reshape(Args... shape){
-        assert(((shape*...) == this->size()) && "Invalid new shape. The total size of the array is not conserved");
+        assert((size_t((shape*...)) == this->size()) && "Invalid new shape. The total size of the array is not conserved");
         this->resize(shape...);
     }
 
@@ -410,17 +413,15 @@ public:
 private:
 
     size_t _size = 0;
-
-
 };
+
+
 
 template<typename Derived>
 class DynamicNdSpan : public detail::AbstractNdSpan<Derived>{
 
     using Base = detail::AbstractNdSpan<Derived>;
     using CLS = DynamicNdSpan<Derived>;
-
-    static constexpr size_t DEFAULT_DATA[2] = {0, 0};
 
 protected:
 
@@ -435,60 +436,46 @@ protected:
     template<std::integral... Args>
     explicit constexpr DynamicNdSpan(Args... shape){
         Base::_shape_check(shape...);
-        _data = new size_t[2+sizeof...(shape)]{};
         this->resize(shape...);
     }
 
     template<std::integral Int>
     explicit DynamicNdSpan(const Int* shape, size_t ndim) {
         assert(Base::_is_valid_shape(shape, ndim) && "Invalid dims");
-        _data = new size_t[2+ndim]{0};
         this->resize(shape, ndim);
     }
 
     //COPY CONSTRUCTOR
     DynamicNdSpan(const DynamicNdSpan& other) : Base(other){
         if (other.ndim() > 0){
-            _data = new size_t[2+other.ndim()];
-            ptr()[0] = other.ndim();
-            ptr()[1] = other.size();
-            std::copy(other.shape(), other.shape() + this->ndim(), ptr()+2);
-            
+            this->allocate(other.shape(), other.ndim());
         }
     }
 
     //MOVE CONSTRUCTOR
-    DynamicNdSpan(DynamicNdSpan&& other) noexcept : Base(other), _data(other._data) {
-        other._data = DEFAULT_DATA;
+    DynamicNdSpan(DynamicNdSpan&& other) noexcept : Base(std::move(other)), ndim_(other.ndim_), size_(other.size_), shape_(std::move(other.shape_)) {
+        other.ndim_ = 0;
+        other.size_ = 0;
     }
 
     //ASSIGNMENT OPERATOR
     DynamicNdSpan& operator=(const DynamicNdSpan& other) {
         if (&other != this){
             Base::operator=(other);
-            if (this->ndim() != other.ndim()){
-                if (this->ndim() > 0){
-                    delete[] ptr();
-                }
-                if (other.ndim() > 0){
-                    _data = new size_t[2+other.ndim()]{other.ndim(), other.size()};
-                }else{
-                    _data = DEFAULT_DATA;
-                }
-            }
-            if (other.ndim() > 0){
-                std::copy(other.shape(), other.shape() + other.ndim(), ptr()+2);
-            }
+            this->resize(other.shape(), other.ndim());
         }
         return *this;
     }
 
     //MOVE-ASSIGNMENT OPERATOR
-    DynamicNdSpan& operator=(DynamicNdSpan&& other) noexcept{
+    DynamicNdSpan& operator=(DynamicNdSpan&& other) noexcept {
         if (&other != this){
             Base::operator=(std::move(other));
-            _data = other._data;
-            other._data = DEFAULT_DATA;
+            ndim_ = other.ndim_;
+            size_ = other.size_;
+            shape_ = std::move(other.shape_);
+            other.ndim_ = 0;
+            other.size_ = 0;
         }
         return *this;
     }
@@ -497,102 +484,81 @@ public:
 
     template<std::integral... Args>
     void constexpr resize(Args... shape){
-
-        constexpr size_t new_nd = sizeof...(shape);
-        if constexpr (new_nd == 0) {
-            if (this->ndim() > 0){
-                delete[] ptr();
-                _data = DEFAULT_DATA;
-            }
-        }else{
-            if (new_nd != this->ndim()){
-                if (this->ndim() > 0){
-                    delete[] ptr();
-                }
-                _data = new size_t[2+new_nd];
-                ptr()[0] = new_nd;
-            }
-
-            ptr()[1] = (shape*...);
-
-            NDSPAN_EXPAND(new_nd, I,
-                if constexpr ((std::is_signed_v<Args> || ...)) {
-                    assert(((shape >= 0 ) && ...) && "Invalid dims");
-                }
-                ((ptr()[I+2] = shape), ...);
-            );
+        if constexpr (sizeof...(shape) == 0){
+            this->deallocate();
+        } else {
+            Base::_shape_check(shape...);
+            const std::array<size_t, sizeof...(shape)> new_shape = {static_cast<size_t>(shape)...};
+            this->resize(new_shape.data(), new_shape.size());
         }
-        
     }
 
     template<std::integral Int>
-    void resize(const Int* shape, size_t ndim){
-
+    constexpr void resize(const Int* shape, size_t ndim){
+        assert((ndim == 0 || shape != nullptr) && "Null shape pointer");
         assert(Base::_is_valid_shape(shape, ndim) && "Negative dims not allowed");
-
-        if (ndim == 0) {
-            if (this->ndim() > 0){
-                delete[] ptr();
-                _data = DEFAULT_DATA;
-            }
-        }else{
-            if (ndim != this->ndim()){
-                if (this->ndim() > 0){
-                    delete[] ptr();
-                }
-                _data = new size_t[2+ndim];
-
-                ptr()[0] = ndim;
-            }
-            ptr()[1] = prod(shape, ndim);
-
-            std::copy(shape, shape + ndim, ptr()+2);
+        if (ndim == 0){
+            this->deallocate();
+        } else {
+            this->allocate(shape, ndim);
         }
     }
 
     template<std::integral... Args>
     void constexpr reshape(Args... shape){
         assert((size_t((shape*...)) == this->size()) && "Invalid new shape. The total size of the array is not conserved");
-        this->resize(shape...);
+        //THIS-> so that the derived layout rebuilds its strides for the new shape
+        THIS->resize(shape...);
     }
 
     template<std::integral Int>
-    void reshape(const Int* shape, size_t ndim){
+    constexpr void reshape(const Int* shape, size_t ndim){
         if (prod(shape, ndim) != this->size()){
             throw std::runtime_error("Invalid new shape. The total size of the array is not conserved");
         }
-        this->resize(shape, ndim);
+        THIS->resize(shape, ndim);
     }
 
     NDSPAN_INLINE size_t ndim() const{
-        return _data[0];
+        return ndim_;
     }
     
     NDSPAN_INLINE size_t size() const{
-        return _data[1];
+        return size_;
     }
 
     NDSPAN_INLINE const size_t* shape() const {
-        return this->ndim() > 0 ? _data+2 : nullptr;
+        return shape_.get();
     }
 
     using Base::shape;
 
 protected:
 
-    ~DynamicNdSpan() {
-        if (this->ndim() > 0){
-            delete[] ptr();
-        }
-    }
+    ~DynamicNdSpan() = default;
 
 private:
 
-    inline size_t*& ptr(){
-        return const_cast<size_t*&>(_data);
+    template<std::integral Int>
+    void allocate(const Int* new_shape, size_t new_ndim){
+        assert((new_shape != nullptr && new_ndim > 0) && "Invalid new shape");
+        size_ = prod(new_shape, new_ndim);
+        if (new_ndim != ndim_){
+            ndim_ = new_ndim;
+            shape_ = std::make_unique<size_t[]>(new_ndim);
+        }
+        std::copy(new_shape, new_shape + new_ndim, shape_.get());
     }
 
-    const size_t* _data = DEFAULT_DATA; //size is number of dims+2: [nd, n, dims...]
+    void deallocate(){
+        ndim_ = 0;
+        size_ = 0;
+        shape_ = nullptr;
+    }
+
+    size_t ndim_ = 0;
+    size_t size_ = 0;
+    std::unique_ptr<size_t[]> shape_;
 
 
 };

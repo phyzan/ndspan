@@ -1,6 +1,8 @@
 #pragma once
 
 #include "../ndspanbase.hpp"
+#include <cstddef>
+
 
 namespace ndspan{
 
@@ -216,26 +218,24 @@ protected:
 
     template<std::integral... Args>
     explicit constexpr StridedDynamicNdSpan(Args... shape) : Base(shape...) {
-        strides_ = new size_t[this->ndim()];
+        this->_alloc_strides(this->ndim());
         Derived::set_strides(strides_, this->shape(), this->ndim());
     }
 
     template<std::integral Int>
     explicit constexpr StridedDynamicNdSpan(const Int* shape, size_t ndim) : Base(shape, ndim) {
-        strides_ = ndim > 0 ? new size_t[ndim] : nullptr;
+        this->_alloc_strides(ndim);
         Derived::set_strides(strides_, shape, ndim);
     }
 
     //COPY CONSTRUCTOR
-    StridedDynamicNdSpan(const StridedDynamicNdSpan& other) : Base(static_cast<const Base&>(other)){
-        strides_ = other.ndim() > 0 ? new size_t[other.ndim()] : nullptr;
-        std::copy(other.strides_, other.strides_ + this->ndim(), strides_);
+    StridedDynamicNdSpan(const StridedDynamicNdSpan& other) : Base(other){
+        this->_alloc_strides(other.ndim());
+        std::copy(other.strides_.get(), other.strides_.get() + this->ndim(), strides_.get());
     }
 
     //MOVE CONSTRUCTOR
-    StridedDynamicNdSpan(StridedDynamicNdSpan&& other) noexcept : Base(static_cast<Base&&>(other)), strides_(other.strides_) {
-        other.strides_ = nullptr;
-    }
+    StridedDynamicNdSpan(StridedDynamicNdSpan&& other) noexcept = default;
 
     //ASSIGNMENT OPERATOR
     StridedDynamicNdSpan& operator=(const StridedDynamicNdSpan& other){
@@ -243,39 +243,22 @@ protected:
             size_t nd_old = this->ndim();
             Base::operator=(other);
             if (nd_old != other.ndim()){
-                delete[] strides_;
-                if (this->ndim() > 0){
-                    strides_ = new size_t[this->ndim()];
-                }
-                else{
-                    strides_ = nullptr;
-                }
+                this->_alloc_strides(this->ndim());
             }
-            std::copy(other.strides_, other.strides_ + this->ndim(), strides_);
+            std::copy(other.strides_.get(), other.strides_.get() + this->ndim(), strides_.get());
         }
         return *this;
     }
 
     //MOVE-ASSIGNMENT OPERATOR
-    StridedDynamicNdSpan& operator=(StridedDynamicNdSpan&& other) noexcept {
-        if (&other != this){
-            Base::operator=(std::move(other));
-            delete[] strides_;
-            strides_ = other.strides_;
-            other.strides_ = nullptr;
-        }
-        return *this;
-    }
+    StridedDynamicNdSpan& operator=(StridedDynamicNdSpan&& other) noexcept = default;
 
-    ~StridedDynamicNdSpan() {
-        delete[] strides_;
-        strides_ = nullptr;
-    }
+    ~StridedDynamicNdSpan() = default;
 
 public:
 
     const size_t* strides() const{
-        return strides_;
+        return strides_.get();
     }
 
     template<std::integral... Args>
@@ -312,16 +295,19 @@ public:
 
 private:
 
+    void _alloc_strides(size_t nd){
+        strides_ = (nd > 0 ? std::make_unique<size_t[]>(nd) : nullptr);
+    }
+
     void _realloc_strides(size_t nd_old){
         if (this->ndim() > nd_old){
             //only reallocate in this case
-            delete[] strides_;
-            strides_ = new size_t[this->ndim()];
+            this->_alloc_strides(this->ndim());
         }
         Derived::set_strides(strides_, this->shape(), this->ndim());
     }
 
-    size_t* strides_ = nullptr;
+    std::unique_ptr<size_t[]> strides_;
 };
 
 
