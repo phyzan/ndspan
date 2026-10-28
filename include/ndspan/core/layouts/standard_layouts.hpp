@@ -343,7 +343,7 @@ public:
     }
 
     template<typename STRIDE_T, typename  SHAPE_T, typename... Idx>
-    NDSPAN_INLINE static void strided_unpack(size_t offset, const STRIDE_T& strides, const SHAPE_T& shape, Idx&... idx) noexcept {
+    NDSPAN_INLINE static void strided_unpack(size_t offset, const STRIDE_T& strides, const SHAPE_T& /*shape*/, Idx&... idx) noexcept {
         NDSPAN_EXPAND(sizeof...(idx), I,
             ((idx = offset / strides[I],
             offset %= strides[I]), ...);
@@ -423,7 +423,7 @@ public:
     }
 
     template<typename STRIDE_T, typename  SHAPE_T, typename... Idx>
-    NDSPAN_INLINE static void strided_unpack(size_t offset, const STRIDE_T& strides, const SHAPE_T& shape, Idx&... idx) noexcept {
+    NDSPAN_INLINE static void strided_unpack(size_t offset, const STRIDE_T& /*strides*/, const SHAPE_T& shape, Idx&... idx) noexcept {
         NDSPAN_EXPAND(sizeof...(idx), I,
             ((idx = offset % shape[I],
             offset /= shape[I]), ...);
@@ -454,7 +454,7 @@ public:
     NDSPAN_INLINE constexpr size_t offset_impl(Int1 i, Int2 j) const {
         if constexpr (R > 0){
             return j*R + i;
-        }else {
+        } else {
             return j*this->shape(0) + i;
         }
     }
