@@ -451,20 +451,16 @@ struct HelperNdArray
 
 
 
-template <typename T, size_t Rank, Allocation Alloc = Allocation::Auto, Layout L = Layout::C>
-using NdArray = detail::HelperNdArray<T, Rank, L>::template type<Alloc>;
+template<typename T, size_t Rank, Layout L, Allocation Alloc = Allocation::Auto>
+using ArrayND = detail::HelperNdArray<T, Rank, L>::template type<Alloc>;
 
-template <typename T, size_t Rank, Layout L = Layout::C>
-using NdView = detail::HelperNdArray<T, Rank, L>::ViewType;
+template <typename T, size_t SIZE, Allocation Alloc = Allocation::Auto>
+using Array1D = Array<T, Alloc, Layout::C, SIZE>; // For 1D, layout is unimportant
 
+template<typename T, size_t M, size_t N, Layout L, Allocation Alloc = Allocation::Auto>
+class Array2D : public Array<T, Alloc, L, M, N>{
 
-template <typename T, size_t SIZE=0, Allocation Alloc = Allocation::Auto>
-using Array1D = Array<T, Alloc, Layout::C, SIZE>;
-
-template<typename T, size_t Nr = 0, size_t Nc = 0, Allocation Alloc = Allocation::Auto, Layout L = Layout::C>
-class Array2D : public Array<T, Alloc, L, Nr, Nc>{
-
-    using Base = Array<T, Alloc, L, Nr, Nc>;
+    using Base = Array<T, Alloc, L, M, N>;
 
 public:
 
@@ -517,9 +513,29 @@ public:
     
 };
 
+template <typename T, size_t M, size_t N, size_t K, Layout L, Allocation Alloc = Allocation::Auto>
+using Array3D = Array<T, Alloc, L, M, N, K>;
 
-template <typename T, size_t M=0, size_t N=0, size_t K=0, Allocation Alloc = Allocation::Auto>
-using Array3D = Array<T, Alloc, Layout::C, M, N, K>;
+
+// ======== Row-major aliases =========
+template<typename T, size_t Rank, Allocation Alloc = Allocation::Auto>
+using CArrayND = ArrayND<T, Rank, Layout::C, Alloc>;
+
+template<typename T, size_t M, size_t N, Allocation Alloc = Allocation::Auto>
+using CArray2D = Array2D<T, M, N, Layout::C, Alloc>;
+
+template<typename T, size_t M, size_t N, size_t K, Allocation Alloc = Allocation::Auto>
+using CArray3D = Array3D<T, M, N, K, Layout::C, Alloc>;
+
+// ======== Column-major aliases =========
+template<typename T, size_t Rank, Allocation Alloc = Allocation::Auto>
+using FArrayND = ArrayND<T, Rank, Layout::F, Alloc>;
+
+template<typename T, size_t M, size_t N, Allocation Alloc = Allocation::Auto>
+using FArray2D = Array2D<T, M, N, Layout::F, Alloc>;
+
+template<typename T, size_t M, size_t N, size_t K, Allocation Alloc = Allocation::Auto>
+using FArray3D = Array3D<T, M, N, K, Layout::F, Alloc>;
 
 
 } // namespace ndspan
