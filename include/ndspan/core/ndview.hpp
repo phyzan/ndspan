@@ -209,17 +209,39 @@ private:
 };
 
 
-template<typename T, size_t Size=0>
-using MutView1D = MutView<T, Layout::C, Size>;
+template<typename T, size_t Size, Layout L>
+using MutView1D = MutView<T, L, Size>;
 
-template<typename T, size_t Size=0>
-using View1D = View<T, Layout::C, Size>;
+template<typename T, size_t Size, Layout L>
+using View1D = View<T, L, Size>;
 
-template<typename T, size_t M=0, size_t N=0>
-using View2D = View<T, Layout::C, M, N>;
+template<typename T, size_t M, size_t N, Layout L>
+using View2D = View<T, L, M, N>;
 
-template<typename T, size_t M=0, size_t N=0, size_t K=0>
-using View3D = View<T, Layout::C, M, N, K>;
+template<typename T, size_t M, size_t N, size_t K, Layout L>
+using View3D = View<T, L, M, N, K>;
+
+
+template<typename T, size_t Size>
+using MutCView1D = MutView1D<T, Size, Layout::C>;
+
+template<typename T, size_t Size>
+using CView1D = View1D<T, Size, Layout::C>;
+
+template<typename T, size_t M, size_t N>
+using CView2D = View2D<T, M, N, Layout::C>;
+
+template<typename T, size_t M, size_t N, size_t K>
+using CView3D = View3D<T, M, N, K, Layout::C>;
+
+template<typename T, size_t Size>
+using FView1D = View1D<T, Size, Layout::F>;
+
+template<typename T, size_t M, size_t N>
+using FView2D = View2D<T, M, N, Layout::F>;
+
+template<typename T, size_t M, size_t N, size_t K>
+using FView3D = View3D<T, M, N, K, Layout::F>;
 
 template<typename Derived, std::integral... Int>
 inline Derived::value_type& tensor_call(Derived& x, Int... idx){
