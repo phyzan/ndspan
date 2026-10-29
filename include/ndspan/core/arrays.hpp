@@ -248,7 +248,7 @@ struct ArrayAllocMap<Allocation::Auto, L, T> { using type = DynamicArray<T, L>; 
 
 template <Layout L, typename T, size_t... DIMS>
 struct ArrayAllocMap<Allocation::Auto, L, T, DIMS...> {
-    using type = std::conditional_t<(((DIMS * ...) == 0)), DynamicArray<T, L, DIMS...>, StackArray<T, L, DIMS...>>; 
+    using type = std::conditional_t<((DIMS * ...) == 0), DynamicArray<T, L, DIMS...>, StackArray<T, L, DIMS...>>; 
 };
 
 } // namespace detail
