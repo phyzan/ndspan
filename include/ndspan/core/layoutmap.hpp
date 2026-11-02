@@ -15,7 +15,7 @@ enum class Layout : std::uint8_t { C, F, Z};
 
 namespace detail{
 
-template <Layout L, size_t... DIMS>
+template <Layout LY, size_t... DIMS>
 struct LayoutMap;
 
 template <size_t... DIMS>
@@ -29,10 +29,10 @@ struct LayoutMap<Layout::Z, DIMS...> { using type = ZorderNdSpan<DIMS...>; };
 
 } // namespace detail
 
-template <Layout L, size_t... DIMS>
-class NdSpan : public std::conditional_t<(sizeof...(DIMS)==1 && (DIMS*...*1)==0), SemiStaticSpan1D, typename detail::LayoutMap<L, DIMS...>::type>{
+template <Layout LY, size_t... DIMS>
+class NdSpan : public std::conditional_t<(sizeof...(DIMS)==1 && (DIMS*...*1)==0), SemiStaticSpan1D, typename detail::LayoutMap<LY, DIMS...>::type>{
 
-    using Base = std::conditional_t<(sizeof...(DIMS)==1 && (DIMS*...*1)==0), SemiStaticSpan1D, typename detail::LayoutMap<L, DIMS...>::type>;
+    using Base = std::conditional_t<(sizeof...(DIMS)==1 && (DIMS*...*1)==0), SemiStaticSpan1D, typename detail::LayoutMap<LY, DIMS...>::type>;
 
 protected:
 

@@ -7,11 +7,11 @@ namespace ndspan{
 
 namespace detail{
 
-template<typename Derived, typename T, Layout L, size_t... DIMS>
-class AbstractArray : public AbstractMutView<Derived, L, T, DIMS...>{
+template<typename Derived, typename T, Layout LY, size_t... DIMS>
+class AbstractArray : public AbstractMutView<Derived, LY, T, DIMS...>{
 
-    using CLS = AbstractArray<Derived, T, L, DIMS...>;
-    using Base = AbstractMutView<Derived, L, T, DIMS...>;
+    using CLS = AbstractArray<Derived, T, LY, DIMS...>;
+    using Base = AbstractMutView<Derived, LY, T, DIMS...>;
 
 protected:
 
@@ -40,11 +40,11 @@ protected:
 } // namespace detail
 
 
-template<typename T, Layout L, size_t... DIMS>
-class DynamicArray : public detail::AbstractArray<DynamicArray<T, L, DIMS...>, T, L, DIMS...>{
+template<typename T, Layout LY, size_t... DIMS>
+class DynamicArray : public detail::AbstractArray<DynamicArray<T, LY, DIMS...>, T, LY, DIMS...>{
 
-    using CLS = DynamicArray<T, L, DIMS...>;
-    using Base = detail::AbstractArray<DynamicArray<T, L, DIMS...>, T, L, DIMS...>;
+    using CLS = DynamicArray<T, LY, DIMS...>;
+    using Base = detail::AbstractArray<DynamicArray<T, LY, DIMS...>, T, LY, DIMS...>;
 
 public:
 
@@ -176,11 +176,11 @@ private:
 };
 
 
-template<typename T, Layout L, size_t... DIMS>
-class StackArray : public detail::AbstractArray<StackArray<T, L, DIMS...>, T, L, DIMS...>{
+template<typename T, Layout LY, size_t... DIMS>
+class StackArray : public detail::AbstractArray<StackArray<T, LY, DIMS...>, T, LY, DIMS...>{
 
-    using CLS = StackArray<T, L, DIMS...>;
-    using Base = detail::AbstractArray<StackArray<T, L, DIMS...>, T, L, DIMS...>;
+    using CLS = StackArray<T, LY, DIMS...>;
+    using Base = detail::AbstractArray<StackArray<T, LY, DIMS...>, T, LY, DIMS...>;
 
 public:
 
@@ -234,31 +234,31 @@ enum class Allocation : std::uint8_t {Heap, Stack, Auto};
 
 namespace detail{
 
-template <Allocation Alloc, Layout L, typename T, size_t... DIMS>
+template <Allocation Alloc, Layout LY, typename T, size_t... DIMS>
 struct ArrayAllocMap;
 
-template <Layout L, typename T, size_t... DIMS>
-struct ArrayAllocMap<Allocation::Heap, L, T, DIMS...> { using type = DynamicArray<T, L, DIMS...>; };
+template <Layout LY, typename T, size_t... DIMS>
+struct ArrayAllocMap<Allocation::Heap, LY, T, DIMS...> { using type = DynamicArray<T, LY, DIMS...>; };
 
-template <Layout L, typename T, size_t... DIMS>
-struct ArrayAllocMap<Allocation::Stack, L, T, DIMS...> { using type = StackArray<T, L, DIMS...>; };
+template <Layout LY, typename T, size_t... DIMS>
+struct ArrayAllocMap<Allocation::Stack, LY, T, DIMS...> { using type = StackArray<T, LY, DIMS...>; };
 
-template <Layout L, typename T>
-struct ArrayAllocMap<Allocation::Auto, L, T> { using type = DynamicArray<T, L>; };
+template <Layout LY, typename T>
+struct ArrayAllocMap<Allocation::Auto, LY, T> { using type = DynamicArray<T, LY>; };
 
-template <Layout L, typename T, size_t... DIMS>
-struct ArrayAllocMap<Allocation::Auto, L, T, DIMS...> {
-    using type = std::conditional_t<((DIMS * ...) == 0), DynamicArray<T, L, DIMS...>, StackArray<T, L, DIMS...>>; 
+template <Layout LY, typename T, size_t... DIMS>
+struct ArrayAllocMap<Allocation::Auto, LY, T, DIMS...> {
+    using type = std::conditional_t<((DIMS * ...) == 0), DynamicArray<T, LY, DIMS...>, StackArray<T, LY, DIMS...>>; 
 };
 
 } // namespace detail
 
 
 
-template <typename T, Allocation Alloc = Allocation::Auto, Layout L = Layout::C, size_t... DIMS>
-class Array : public detail::ArrayAllocMap<Alloc, L, T, DIMS...>::type{
+template <typename T, Allocation Alloc = Allocation::Auto, Layout LY = Layout::C, size_t... DIMS>
+class Array : public detail::ArrayAllocMap<Alloc, LY, T, DIMS...>::type{
 
-    using Base = detail::ArrayAllocMap<Alloc, L, T, DIMS...>::type;
+    using Base = detail::ArrayAllocMap<Alloc, LY, T, DIMS...>::type;
 
 public:
 
@@ -330,16 +330,16 @@ public:
         return Base::ptr(idx...);
     }
 
-    NDSPAN_INLINE View<T, L, DIMS...> view() const{
+    NDSPAN_INLINE View<T, LY, DIMS...> view() const{
         if constexpr (Base::N > 0){
-            return View<T, L, DIMS...>(this->data());
+            return View<T, LY, DIMS...>(this->data());
         }else if (Base::RANK > 0) {
             const size_t* s = this->shape();
             return NDSPAN_EXPAND(Base::RANK, I,
-                View<T, L, DIMS...>(this->data(), s[I]...);
+                View<T, LY, DIMS...>(this->data(), s[I]...);
             );
         }else {
-            return View<T, L, DIMS...>(this->data(), this->shape(), this->ndim());
+            return View<T, LY, DIMS...>(this->data(), this->shape(), this->ndim());
         }
     }
 
@@ -431,14 +431,14 @@ public:
 
 namespace detail{
 
-template <typename T, size_t Rank, Layout L = Layout::C>
+template <typename T, size_t Rank, Layout LY = Layout::C>
 struct HelperNdArray
 {
     template <Allocation Alloc, std::size_t... Is>
-    static Array<T, Alloc, L, (static_cast<void>(Is), 0)...> make(std::index_sequence<Is...>);
+    static Array<T, Alloc, LY, (static_cast<void>(Is), 0)...> make(std::index_sequence<Is...>);
 
     template <std::size_t... Is>
-    static View<T, L, (static_cast<void>(Is), 0)...> make_view(std::index_sequence<Is...>);
+    static View<T, LY, (static_cast<void>(Is), 0)...> make_view(std::index_sequence<Is...>);
 
     template<Allocation Alloc>
     using type = decltype(make<Alloc>(std::make_index_sequence<Rank>{}));
@@ -451,16 +451,16 @@ struct HelperNdArray
 
 
 
-template<typename T, size_t Rank, Layout L, Allocation Alloc = Allocation::Auto>
-using ArrayND = detail::HelperNdArray<T, Rank, L>::template type<Alloc>;
+template<typename T, size_t Rank, Layout LY, Allocation Alloc = Allocation::Auto>
+using ArrayND = detail::HelperNdArray<T, Rank, LY>::template type<Alloc>;
 
 template <typename T, size_t SIZE, Allocation Alloc = Allocation::Auto>
 using Array1D = Array<T, Alloc, Layout::C, SIZE>; // For 1D, layout is unimportant
 
-template<typename T, size_t M, size_t N, Layout L, Allocation Alloc = Allocation::Auto>
-class Array2D : public Array<T, Alloc, L, M, N>{
+template<typename T, size_t M, size_t N, Layout LY, Allocation Alloc = Allocation::Auto>
+class Array2D : public Array<T, Alloc, LY, M, N>{
 
-    using Base = Array<T, Alloc, L, M, N>;
+    using Base = Array<T, Alloc, LY, M, N>;
 
 public:
 
@@ -513,9 +513,14 @@ public:
     
 };
 
-template <typename T, size_t M, size_t N, size_t K, Layout L, Allocation Alloc = Allocation::Auto>
-using Array3D = Array<T, Alloc, L, M, N, K>;
+template <typename T, size_t M, size_t N, size_t K, Layout LY, Allocation Alloc = Allocation::Auto>
+using Array3D = Array<T, Alloc, LY, M, N, K>;
 
+template <typename T, size_t M, size_t N, size_t K, size_t L, Layout LY, Allocation Alloc = Allocation::Auto>
+using Array4D = Array<T, Alloc, LY, M, N, K, L>;
+
+template <typename T, size_t M, size_t N, size_t K, size_t L, size_t P, Layout LY, Allocation Alloc = Allocation::Auto>
+using Array5D = Array<T, Alloc, LY, M, N, K, L, P>;
 
 // ======== Row-major aliases =========
 template<typename T, size_t Rank, Allocation Alloc = Allocation::Auto>
@@ -527,6 +532,12 @@ using CArray2D = Array2D<T, M, N, Layout::C, Alloc>;
 template<typename T, size_t M, size_t N, size_t K, Allocation Alloc = Allocation::Auto>
 using CArray3D = Array3D<T, M, N, K, Layout::C, Alloc>;
 
+template<typename T, size_t M, size_t N, size_t K, size_t L, Allocation Alloc = Allocation::Auto>
+using CArray4D = Array4D<T, M, N, K, L, Layout::C, Alloc>;
+
+template<typename T, size_t M, size_t N, size_t K, size_t L, size_t P, Allocation Alloc = Allocation::Auto>
+using CArray5D = Array5D<T, M, N, K, L, P, Layout::C, Alloc>;
+
 // ======== Column-major aliases =========
 template<typename T, size_t Rank, Allocation Alloc = Allocation::Auto>
 using FArrayND = ArrayND<T, Rank, Layout::F, Alloc>;
@@ -536,6 +547,12 @@ using FArray2D = Array2D<T, M, N, Layout::F, Alloc>;
 
 template<typename T, size_t M, size_t N, size_t K, Allocation Alloc = Allocation::Auto>
 using FArray3D = Array3D<T, M, N, K, Layout::F, Alloc>;
+
+template<typename T, size_t M, size_t N, size_t K, size_t L, Allocation Alloc = Allocation::Auto>
+using FArray4D = Array4D<T, M, N, K, L, Layout::F, Alloc>;
+
+template<typename T, size_t M, size_t N, size_t K, size_t L, size_t P, Allocation Alloc = Allocation::Auto>
+using FArray5D = Array5D<T, M, N, K, L, P, Layout::F, Alloc>;
 
 
 } // namespace ndspan

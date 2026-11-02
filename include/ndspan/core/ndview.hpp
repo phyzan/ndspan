@@ -7,11 +7,11 @@ namespace ndspan{
 namespace detail{
 
 
-template<typename Derived, Layout L, typename T, size_t... DIMS>
-class AbstractView : public NdSpan<L, DIMS...>{
+template<typename Derived, Layout LY, typename T, size_t... DIMS>
+class AbstractView : public NdSpan<LY, DIMS...>{
 
-    using CLS = AbstractView<Derived, L, T, DIMS...>;
-    using Base = NdSpan<L, DIMS...>;
+    using CLS = AbstractView<Derived, LY, T, DIMS...>;
+    using Base = NdSpan<LY, DIMS...>;
 
 protected:
 
@@ -76,11 +76,11 @@ public:
 
 };
 
-template<typename Derived, Layout L, typename T, size_t... DIMS>
-class AbstractMutView : public AbstractView<Derived, L, T, DIMS...>{
+template<typename Derived, Layout LY, typename T, size_t... DIMS>
+class AbstractMutView : public AbstractView<Derived, LY, T, DIMS...>{
 
-    using CLS = AbstractMutView<Derived, L, T, DIMS...>;
-    using Base = AbstractView<Derived, L, T, DIMS...>;
+    using CLS = AbstractMutView<Derived, LY, T, DIMS...>;
+    using Base = AbstractView<Derived, LY, T, DIMS...>;
 
 protected:
 
@@ -144,10 +144,10 @@ public:
 } // namespace detail
 
 
-template<typename T, Layout L = Layout::C, size_t... DIMS>
-class View : public detail::AbstractView<View<T, L, DIMS...>, L, T, DIMS...>{
+template<typename T, Layout LY = Layout::C, size_t... DIMS>
+class View : public detail::AbstractView<View<T, LY, DIMS...>, LY, T, DIMS...>{
 
-    using Base = detail::AbstractView<View<T, L, DIMS...>, L, T, DIMS...>;
+    using Base = detail::AbstractView<View<T, LY, DIMS...>, LY, T, DIMS...>;
 
 public:
 
@@ -174,10 +174,10 @@ private:
 };
 
 
-template<typename T, Layout L = Layout::C, size_t... DIMS>
-class MutView : public detail::AbstractMutView<MutView<T, L, DIMS...>, L, T, DIMS...>{
+template<typename T, Layout LY = Layout::C, size_t... DIMS>
+class MutView : public detail::AbstractMutView<MutView<T, LY, DIMS...>, LY, T, DIMS...>{
 
-    using Base = detail::AbstractMutView<MutView<T, L, DIMS...>, L, T, DIMS...>;
+    using Base = detail::AbstractMutView<MutView<T, LY, DIMS...>, LY, T, DIMS...>;
 
 public:
 
@@ -208,41 +208,6 @@ private:
     T* _data;
 };
 
-
-template<typename T, size_t Size, Layout L>
-using MutView1D = MutView<T, L, Size>;
-
-template<typename T, size_t Size, Layout L>
-using View1D = View<T, L, Size>;
-
-template<typename T, size_t M, size_t N, Layout L>
-using View2D = View<T, L, M, N>;
-
-template<typename T, size_t M, size_t N, size_t K, Layout L>
-using View3D = View<T, L, M, N, K>;
-
-
-template<typename T, size_t Size>
-using MutCView1D = MutView1D<T, Size, Layout::C>;
-
-template<typename T, size_t Size>
-using CView1D = View1D<T, Size, Layout::C>;
-
-template<typename T, size_t M, size_t N>
-using CView2D = View2D<T, M, N, Layout::C>;
-
-template<typename T, size_t M, size_t N, size_t K>
-using CView3D = View3D<T, M, N, K, Layout::C>;
-
-template<typename T, size_t Size>
-using FView1D = View1D<T, Size, Layout::F>;
-
-template<typename T, size_t M, size_t N>
-using FView2D = View2D<T, M, N, Layout::F>;
-
-template<typename T, size_t M, size_t N, size_t K>
-using FView3D = View3D<T, M, N, K, Layout::F>;
-
 template<typename Derived, std::integral... Int>
 inline Derived::value_type& tensor_call(Derived& x, Int... idx){
     return x(idx...);
@@ -252,5 +217,33 @@ template<typename Derived, std::integral... Int>
 inline const Derived::value_type& tensor_call(const Derived& x, Int... idx){
     return x(idx...);
 }
+
+
+// Common aliases
+
+template<typename T, size_t Size, Layout LY>
+using MutView1D = MutView<T, LY, Size>;
+
+template<typename T, size_t Size, Layout LY>
+using View1D = View<T, LY, Size>;
+
+template<typename T, size_t M, size_t N, Layout LY>
+using View2D = View<T, LY, M, N>;
+
+template<typename T, size_t M, size_t N, size_t K, Layout LY>
+using View3D = View<T, LY, M, N, K>;
+
+
+template<typename T, size_t M, size_t N>
+using CView2D = View2D<T, M, N, Layout::C>;
+
+template<typename T, size_t M, size_t N, size_t K>
+using CView3D = View3D<T, M, N, K, Layout::C>;
+
+template<typename T, size_t M, size_t N>
+using FView2D = View2D<T, M, N, Layout::F>;
+
+template<typename T, size_t M, size_t N, size_t K>
+using FView3D = View3D<T, M, N, K, Layout::F>;
 
 } // namespace ndspan
