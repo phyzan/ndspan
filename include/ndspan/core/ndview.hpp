@@ -94,6 +94,10 @@ public:
 
     //MODIFIERS
 
+    // The overloads below would otherwise hide the const ones
+    using Base::begin;
+    using Base::end;
+
     iterator begin() { return this->data(); }
     iterator end()   { return this->data() + this->size(); }
 
