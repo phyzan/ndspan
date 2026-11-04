@@ -48,10 +48,10 @@ using copy_const_t = std::conditional_t<std::is_const_v<From>, const To, To>;
 
 
 template<size_t I, std::size_t N, typename F, typename... Args>
-NDSPAN_INLINE constexpr void for_each_impl(F& f, Args&... args){
+NDSPAN_INLINE constexpr void ForEach_impl(F& f, Args&... args){
     if constexpr (I < N) {
         f.template operator()<I>(args...);
-        for_each_impl<I + 1, N>(f, args...);
+        ForEach_impl<I + 1, N>(f, args...);
     }
 }
 
@@ -72,11 +72,43 @@ constexpr size_t validate_size(size_t size){
     return size;
 }
 
+template<typename F, std::integral First, std::integral... Int>
+constexpr void for_each_impl(F&& f, First Ni, Int... Nj){
+    if constexpr (sizeof...(Int) == 0){
+        for (size_t i = 0; i < Ni; ++i) {
+            std::forward<F>(f)(i);
+        }
+    } else {
+        for (size_t i = 0; i < Ni; ++i) {
+            for_each_impl([&](auto... Nk) {
+                f(i, Nk...);
+            }, Nj...);
+        }
+    }
+}
+
+template<typename F, size_t Dim, size_t... I>
+constexpr void make_for_each(F&& f, std::array<size_t, Dim> shape, std::index_sequence<I...> /**/){
+    for_each_impl(std::forward<F>(f), shape[I]...);
+}
+
 } // namespace detail
+
+// --------------- Multidim loops -----------------
+template<typename F, size_t Dim>
+constexpr void for_each(F&& f, std::array<size_t, Dim> shape){
+    detail::make_for_each(std::forward<F>(f), shape, std::make_index_sequence<Dim>{});
+}
+
+template<typename F, std::integral... Int>
+constexpr void for_each(F&& f, Int... shape){
+    detail::for_each_impl(std::forward<F>(f), shape...);
+}
+// ------------------------------------------------
 
 template<size_t N, typename F, typename... Args>
 NDSPAN_INLINE constexpr void ForEach(F&& f, Args&&... args){
-    detail::for_each_impl<0, N>(f, args...);
+    detail::ForEach_impl<0, N>(f, args...);
 }
 
 
