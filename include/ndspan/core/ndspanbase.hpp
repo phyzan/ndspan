@@ -528,7 +528,7 @@ public:
     }
 
     NDSPAN_INLINE const size_t* shape() const {
-        return shape_.get();
+        return ndim_ == 1 ? &size_ : shape_.get(); // a single dimension is the size itself
     }
 
     using Base::shape;
@@ -545,9 +545,11 @@ private:
         size_ = prod(new_shape, new_ndim);
         if (new_ndim != ndim_){
             ndim_ = new_ndim;
-            shape_ = std::make_unique<size_t[]>(new_ndim);
+            shape_ = new_ndim == 1 ? nullptr : std::make_unique<size_t[]>(new_ndim);
         }
-        std::copy(new_shape, new_shape + new_ndim, shape_.get());
+        if (new_ndim > 1){
+            std::copy(new_shape, new_shape + new_ndim, shape_.get());
+        }
     }
 
     void deallocate(){

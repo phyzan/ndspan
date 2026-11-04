@@ -219,19 +219,25 @@ protected:
     template<std::integral... Args>
     explicit constexpr StridedDynamicNdSpan(Args... shape) : Base(shape...) {
         this->_alloc_strides(this->ndim());
-        Derived::set_strides(strides_, this->shape(), this->ndim());
+        if (this->ndim() > 1){
+            Derived::set_strides(strides_, this->shape(), this->ndim());
+        }
     }
 
     template<std::integral Int>
     explicit constexpr StridedDynamicNdSpan(const Int* shape, size_t ndim) : Base(shape, ndim) {
         this->_alloc_strides(ndim);
-        Derived::set_strides(strides_, shape, ndim);
+        if (ndim > 1){
+            Derived::set_strides(strides_, shape, ndim);
+        }
     }
 
     //COPY CONSTRUCTOR
     StridedDynamicNdSpan(const StridedDynamicNdSpan& other) : Base(other){
         this->_alloc_strides(other.ndim());
-        std::copy(other.strides_.get(), other.strides_.get() + this->ndim(), strides_.get());
+        if (other.ndim() > 1){
+            std::copy(other.strides_.get(), other.strides_.get() + this->ndim(), strides_.get());
+        }
     }
 
     //MOVE CONSTRUCTOR
@@ -245,7 +251,9 @@ protected:
             if (nd_old != other.ndim()){
                 this->_alloc_strides(this->ndim());
             }
-            std::copy(other.strides_.get(), other.strides_.get() + this->ndim(), strides_.get());
+            if (other.ndim() > 1){
+                std::copy(other.strides_.get(), other.strides_.get() + this->ndim(), strides_.get());
+            }
         }
         return *this;
     }
@@ -258,7 +266,8 @@ protected:
 public:
 
     const size_t* strides() const{
-        return strides_.get();
+        static constexpr size_t unit_stride = 1; // a single dimension needs no stored stride
+        return this->ndim() == 1 ? &unit_stride : strides_.get();
     }
 
     template<std::integral... Args>
@@ -279,16 +288,18 @@ public:
 
     template<std::integral... Idx>
     NDSPAN_INLINE constexpr size_t offset_impl(Idx... idx) const noexcept{
+        const size_t* strides = this->strides();
         return NDSPAN_EXPAND(sizeof...(idx), I,
-            return ((idx * strides_[I]) + ...);
+            return ((idx * strides[I]) + ...);
         );
     }
 
     template<std::integral Idx>
     NDSPAN_INLINE constexpr size_t getOffset_impl(const Idx* idx_ptr) const noexcept{
+        const size_t* strides = this->strides();
         size_t res = 0;
         for (size_t i = 0; i < this->ndim(); i++){
-            res += static_cast<size_t>(idx_ptr[i]) * strides_[i];
+            res += static_cast<size_t>(idx_ptr[i]) * strides[i];
         }
         return res;
     }
@@ -296,7 +307,7 @@ public:
 private:
 
     void _alloc_strides(size_t nd){
-        strides_ = (nd > 0 ? std::make_unique<size_t[]>(nd) : nullptr);
+        strides_ = (nd > 1 ? std::make_unique<size_t[]>(nd) : nullptr);
     }
 
     void _realloc_strides(size_t nd_old){
@@ -304,7 +315,9 @@ private:
             //only reallocate in this case
             this->_alloc_strides(this->ndim());
         }
-        Derived::set_strides(strides_, this->shape(), this->ndim());
+        if (this->ndim() > 1){
+            Derived::set_strides(strides_, this->shape(), this->ndim());
+        }
     }
 
     std::unique_ptr<size_t[]> strides_;
