@@ -1,5 +1,7 @@
 #pragma once
 
+#include <sstream>
+#include <string>
 #include "ndview.hpp"
 
 
@@ -8,10 +10,10 @@ namespace ndspan{
 namespace detail{
 
 template<typename Derived, typename T, Layout LY, size_t... DIMS>
-class AbstractArray : public AbstractMutView<Derived, LY, T, DIMS...>{
+class AbstractArray : public AbstractView<Derived, LY, T, DIMS...>{
 
     using CLS = AbstractArray<Derived, T, LY, DIMS...>;
-    using Base = AbstractMutView<Derived, LY, T, DIMS...>;
+    using Base = AbstractView<Derived, LY, T, DIMS...>;
 
 protected:
 
@@ -330,16 +332,16 @@ public:
         return Base::ptr(idx...);
     }
 
-    NDSPAN_INLINE View<T, LY, DIMS...> view() const{
+    NDSPAN_INLINE View<const T, LY, DIMS...> view() const{
         if constexpr (Base::N > 0){
-            return View<T, LY, DIMS...>(this->data());
-        }else if (Base::RANK > 0) {
+            return View<const T, LY, DIMS...>(this->data());
+        } else if (Base::RANK > 0) {
             const size_t* s = this->shape();
             return NDSPAN_EXPAND(Base::RANK, I,
-                View<T, LY, DIMS...>(this->data(), s[I]...);
+                return View<const T, LY, DIMS...>(this->data(), s[I]...);
             );
-        }else {
-            return View<T, LY, DIMS...>(this->data(), this->shape(), this->ndim());
+        } else {
+            return View<const T, LY, DIMS...>(this->data(), this->shape(), this->ndim());
         }
     }
 
@@ -365,6 +367,19 @@ public:
 
     //=============================== MODIFIERS ===================================
 
+    NDSPAN_INLINE View<T, LY, DIMS...> view(){
+        if constexpr (Base::N > 0){
+            return View<T, LY, DIMS...>(this->data());
+        } else if (Base::RANK > 0) {
+            const size_t* s = this->shape();
+            return NDSPAN_EXPAND(Base::RANK, I,
+                return View<T, LY, DIMS...>(this->data(), s[I]...);
+            );
+        } else {
+            return View<T, LY, DIMS...>(this->data(), this->shape(), this->ndim());
+        }
+    }
+
     // NdSpan interface
     template<std::integral... Args>
     NDSPAN_INLINE void reshape(Args... shape){
@@ -387,7 +402,7 @@ public:
     }
 
 
-    // MutView interface
+    // View interface
 
     iterator begin() { return Base::data(); }
     iterator end()   { return Base::end(); }
@@ -446,9 +461,72 @@ struct HelperNdArray
     using ViewType = decltype(make_view(std::make_index_sequence<Rank>{}));
 };
 
+// Writes the block spanned by the axes [axis, ndim), consuming its formatted elements from "element".
+inline void print_block(std::ostream& out, const std::string*& element, const size_t* widths, const size_t* shape, size_t ndim, size_t axis){
+    const bool is_row = (axis + 1 == ndim);
+
+    out << '{';
+    for (size_t i = 0; i < shape[axis]; ++i){
+        if (is_row){
+            if (i > 0){
+                out << ' ';
+            }
+            out << std::setw(static_cast<int>(widths[i])) << *element++;
+        } else {
+            if (i > 0){
+                // Rows go on consecutive lines, larger blocks are separated by a blank line.
+                out << (ndim - axis > 2 ? "\n\n" : "\n") << std::string(axis + 1, ' ');
+            }
+            print_block(out, element, widths, shape, ndim, axis + 1);
+        }
+    }
+    out << '}';
+}
 
 } // namespace detail
 
+// Writes an array of any rank as nested braces, in logical index order regardless of its layout.
+// Each column of the last axis is aligned across the whole array, and elements are formatted
+// using the settings of "out" (e.g. its precision). No trailing newline is written.
+template<typename ArrayType>
+std::ostream& print_array(std::ostream& out, const ArrayType& array){
+    if (array.size() == 0){
+        return out << "{}";
+    }
+
+    const size_t ndim = array.ndim();
+    const size_t* shape = array.shape();
+
+    std::vector<std::string> elements(array.size());
+    std::vector<size_t> column_widths(shape[ndim-1], 0);
+    std::vector<size_t> idx(ndim, 0);
+
+    std::ostringstream element_stream;
+    element_stream.copyfmt(out);
+    element_stream.width(0);
+
+    // Format each element once and determine column widths.
+    for (std::string& element : elements){
+        element_stream.str("");
+        element_stream << array.data()[array.getOffset(idx.data())];
+        element = element_stream.str();
+
+        size_t& width = column_widths[idx[ndim-1]];
+        width = ndspan::max(width, element.size());
+
+        // Advance to the next element, with the last axis changing fastest.
+        for (size_t axis = ndim; axis > 0; --axis){
+            if (++idx[axis-1] < shape[axis-1]){
+                break;
+            }
+            idx[axis-1] = 0;
+        }
+    }
+
+    const std::string* first = elements.data();
+    detail::print_block(out, first, column_widths.data(), shape, ndim, 0);
+    return out;
+}
 
 
 template<typename T, size_t Rank, Layout LY, Allocation Alloc = Allocation::Auto>
@@ -457,61 +535,8 @@ using ArrayND = detail::HelperNdArray<T, Rank, LY>::template type<Alloc>;
 template <typename T, size_t SIZE, Allocation Alloc = Allocation::Auto>
 using Array1D = Array<T, Alloc, Layout::C, SIZE>; // For 1D, layout is unimportant
 
-template<typename T, size_t M, size_t N, Layout LY, Allocation Alloc = Allocation::Auto>
-class Array2D : public Array<T, Alloc, LY, M, N>{
-
-    using Base = Array<T, Alloc, LY, M, N>;
-
-public:
-
-    using Base::Base;
-
-    DEFAULT_RULE_OF_FOUR(Array2D)
-
-    NDSPAN_INLINE size_t Nrows() const {return this->shape(0);}
-
-    NDSPAN_INLINE size_t Ncols() const {return this->shape(1);}
-
-    void repr(std::ostream& out, int digits = 8) const {
-        if (this->size() == 0) {
-            return;
-        }
-
-        const std::size_t rows = this->Nrows();
-        const std::size_t cols = this->Ncols();
-
-        std::vector<std::string> elements(rows * cols);
-        std::vector<std::size_t> column_widths(cols, 0);
-
-        // Format each element once and determine column widths.
-        for (std::size_t i = 0; i < rows; ++i) {
-            for (std::size_t j = 0; j < cols; ++j) {
-                std::ostringstream element_stream;
-                element_stream << std::setprecision(digits) << (*this)(i, j);
-                auto& element = elements[i * cols + j];
-                element = element_stream.str();
-                column_widths[j] = ndspan::max(column_widths[j], element.size());
-            }
-        }
-
-        // Write the aligned representation.
-        for (std::size_t i = 0; i < rows; ++i) {
-            for (std::size_t j = 0; j < cols; ++j) {
-                out << std::setw(static_cast<int>(column_widths[j]))
-                    << elements[i * cols + j];
-
-                if (j + 1 < cols) {
-                    out << ' ';
-                }
-            }
-
-            if (i + 1 < rows) {
-                out << '\n';
-            }
-        }
-    }
-    
-};
+template <typename T, size_t M, size_t N, Layout LY, Allocation Alloc = Allocation::Auto>
+using Array2D = Array<T, Alloc, LY, M, N>;
 
 template <typename T, size_t M, size_t N, size_t K, Layout LY, Allocation Alloc = Allocation::Auto>
 using Array3D = Array<T, Alloc, LY, M, N, K>;

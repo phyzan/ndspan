@@ -39,6 +39,7 @@ public:
     const_iterator begin() const { return this->data(); }
     const_iterator end() const { return this->data() + this->size(); }
     
+
     NDSPAN_INLINE constexpr const T* data() const{
         //override
         return THIS->data();
@@ -74,29 +75,7 @@ public:
         return tensor_call(THIS, i...);
     }
 
-};
-
-template<typename Derived, Layout LY, typename T, size_t... DIMS>
-class AbstractMutView : public AbstractView<Derived, LY, T, DIMS...>{
-
-    using CLS = AbstractMutView<Derived, LY, T, DIMS...>;
-    using Base = AbstractView<Derived, LY, T, DIMS...>;
-
-protected:
-
-    using Base::Base;
-
-public:
-
-    using value_type = T;
-    using iterator = T*;
-    using const_iterator = const T*;
-
-    //MODIFIERS
-
-    // The overloads below would otherwise hide the const ones
-    using Base::begin;
-    using Base::end;
+    // -------------- Modifiers -------------
 
     iterator begin() { return this->data(); }
     iterator end()   { return this->data() + this->size(); }
@@ -137,11 +116,6 @@ public:
         return static_cast<Derived&>(*this);
     }
 
-    using Base::data;
-    using Base::operator();
-    using Base::operator[];
-    using Base::ptr;
-
 };
 
 
@@ -155,51 +129,24 @@ class View : public detail::AbstractView<View<T, LY, DIMS...>, LY, T, DIMS...>{
 
 public:
 
-    explicit View(const T* data) requires (Base::N > 0) : Base(), _data(data) {}
+    explicit View(T* data) requires (Base::N > 0) : Base(), _data(data) {}
 
     template<std::integral... Args>
-    explicit View(const T* data, Args... shape) : Base(shape...), _data(data) {}
+    explicit View(T* data, Args... shape) : Base(shape...), _data(data) {}
 
     template<std::integral Int>
-    explicit View(const T* data, const Int* shape, size_t ndim) : Base(shape, ndim), _data(data) {}
+    explicit View(T* data, const Int* shape, size_t ndim) : Base(shape, ndim), _data(data) {}
 
-
-    NDSPAN_INLINE const T* data() const{
-        return _data;
-    }
-
-    void set_data(const T* data) {
-        _data = data;
-    }
-
-private:
-
-    const T* _data;
-};
-
-
-template<typename T, Layout LY = Layout::C, size_t... DIMS>
-class MutView : public detail::AbstractMutView<MutView<T, LY, DIMS...>, LY, T, DIMS...>{
-
-    using Base = detail::AbstractMutView<MutView<T, LY, DIMS...>, LY, T, DIMS...>;
-
-public:
-
-    using Base::Base;
-
-    explicit MutView(T* data) requires (Base::N > 0) : Base(), _data(data) {}
-
-    template<std::integral... Args>
-    explicit MutView(T* data, Args... shape) : Base(shape...), _data(data) {}
-
-    template<std::integral Int>
-    explicit MutView(T* data, const Int* shape, size_t ndim) : Base(shape, ndim), _data(data) {}
-
-    NDSPAN_INLINE const T* data() const{
-        return _data;
-    }
+    // A mutable view converts to a read-only one, the way T* converts to const T*.
+    // A template, since a constructor taking a View directly would replace the copy constructor.
+    template<typename U> requires std::same_as<T, const U>
+    View(const View<U, LY, DIMS...>& other) : Base(other.shape(), other.ndim()), _data(other.data()) {}
 
     NDSPAN_INLINE T* data() {
+        return _data;
+    }
+
+    NDSPAN_INLINE const T* data() const{
         return _data;
     }
 
@@ -211,6 +158,7 @@ private:
 
     T* _data;
 };
+
 
 template<typename Derived, std::integral... Int>
 inline Derived::value_type& tensor_call(Derived& x, Int... idx){
@@ -225,8 +173,6 @@ inline const Derived::value_type& tensor_call(const Derived& x, Int... idx){
 
 // Common aliases
 
-template<typename T, size_t Size, Layout LY>
-using MutView1D = MutView<T, LY, Size>;
 
 template<typename T, size_t Size, Layout LY>
 using View1D = View<T, LY, Size>;
@@ -237,6 +183,12 @@ using View2D = View<T, LY, M, N>;
 template<typename T, size_t M, size_t N, size_t K, Layout LY>
 using View3D = View<T, LY, M, N, K>;
 
+template<typename T, size_t M, size_t N, size_t K, size_t L, Layout LY>
+using View4D = View<T, LY, M, N, K, L>;
+
+template<typename T, size_t M, size_t N, size_t K, size_t L, size_t P, Layout LY>
+using View5D = View<T, LY, M, N, K, L, P>;
+
 
 template<typename T, size_t M, size_t N>
 using CView2D = View2D<T, M, N, Layout::C>;
@@ -244,10 +196,22 @@ using CView2D = View2D<T, M, N, Layout::C>;
 template<typename T, size_t M, size_t N, size_t K>
 using CView3D = View3D<T, M, N, K, Layout::C>;
 
+template<typename T, size_t M, size_t N, size_t K, size_t L>
+using CView4D = View4D<T, M, N, K, L, Layout::C>;
+
+template<typename T, size_t M, size_t N, size_t K, size_t L, size_t P>
+using CView5D = View5D<T, M, N, K, L, P, Layout::C>;
+
 template<typename T, size_t M, size_t N>
 using FView2D = View2D<T, M, N, Layout::F>;
 
 template<typename T, size_t M, size_t N, size_t K>
 using FView3D = View3D<T, M, N, K, Layout::F>;
+
+template<typename T, size_t M, size_t N, size_t K, size_t L>
+using FView4D = View4D<T, M, N, K, L, Layout::F>;
+
+template<typename T, size_t M, size_t N, size_t K, size_t L, size_t P>
+using FView5D = View5D<T, M, N, K, L, P, Layout::F>;
 
 } // namespace ndspan
