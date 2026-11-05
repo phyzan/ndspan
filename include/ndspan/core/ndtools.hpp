@@ -1,6 +1,7 @@
 #pragma once
 
 #include <algorithm>
+#include <cstdint>
 #include <utility>
 #include <array>
 #include <cstring>
@@ -41,6 +42,10 @@ ndspan::Expand<N>([&]<size_t... I>() __attribute__((always_inline, flatten)) { \
 
 namespace ndspan{
 
+enum class Fastest : uint8_t {
+    Left, Right,
+};
+
 namespace detail{
 
 template<typename From, typename To>
@@ -72,37 +77,45 @@ constexpr size_t validate_size(size_t size){
     return size;
 }
 
-template<typename F, std::integral First, std::integral... Int>
-constexpr void for_each_impl(F&& f, First Ni, Int... Nj){
+template<Fastest Index, typename F, std::integral First, std::integral... Int>
+NDSPAN_INLINE constexpr void for_each_impl(F&& f, const First Ni, const Int... Nj){
     if constexpr (sizeof...(Int) == 0){
         for (size_t i = 0; i < Ni; ++i) {
             std::forward<F>(f)(i);
         }
+    } else if constexpr (Index == Fastest::Left) {
+        for_each_impl<Index>([&](const auto... Nk) {
+            for (size_t i = 0; i < Ni; ++i) {
+                f(i, Nk...);
+            }
+        }, Nj...);
     } else {
         for (size_t i = 0; i < Ni; ++i) {
-            for_each_impl([&](auto... Nk) {
+            for_each_impl<Index>([&](const auto... Nk) {
                 f(i, Nk...);
             }, Nj...);
         }
     }
 }
 
-template<typename F, size_t Dim, size_t... I>
-constexpr void make_for_each(F&& f, std::array<size_t, Dim> shape, std::index_sequence<I...> /**/){
-    for_each_impl(std::forward<F>(f), shape[I]...);
+template<Fastest Index, typename F, size_t Dim, size_t... I>
+constexpr void make_for_each(F&& f, const std::array<size_t, Dim> shape, std::index_sequence<I...> /**/){
+    for_each_impl<Index>(std::forward<F>(f), shape[I]...);
 }
 
 } // namespace detail
 
+
 // --------------- Multidim loops -----------------
-template<typename F, size_t Dim>
-constexpr void for_each(F&& f, std::array<size_t, Dim> shape){
-    detail::make_for_each(std::forward<F>(f), shape, std::make_index_sequence<Dim>{});
+// Calls f(i0, i1, ...) with each index in [0, shape[axis]). Fastest::Left: i0 changes fastest (column-major).
+template<Fastest Index, typename F, size_t Dim>
+constexpr void for_each(F&& f, const std::array<size_t, Dim> shape){
+    detail::make_for_each<Index>(std::forward<F>(f), shape, std::make_index_sequence<Dim>{});
 }
 
-template<typename F, std::integral... Int>
-constexpr void for_each(F&& f, Int... shape){
-    detail::for_each_impl(std::forward<F>(f), shape...);
+template<Fastest Index, typename F, std::integral... Int>
+constexpr void for_each(F&& f, const Int... shape){
+    detail::for_each_impl<Index>(std::forward<F>(f), shape...);
 }
 // ------------------------------------------------
 
