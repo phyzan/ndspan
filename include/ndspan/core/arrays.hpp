@@ -446,14 +446,14 @@ public:
 
 namespace detail{
 
-template <typename T, size_t Rank, Layout LY = Layout::C>
+template <typename T, size_t Rank, Layout LY, size_t N>
 struct HelperNdArray
 {
     template <Allocation Alloc, std::size_t... Is>
-    static Array<T, Alloc, LY, (static_cast<void>(Is), 0)...> make(std::index_sequence<Is...>);
+    static Array<T, Alloc, LY, (static_cast<void>(Is), N)...> make(std::index_sequence<Is...>);
 
     template <std::size_t... Is>
-    static View<T, LY, (static_cast<void>(Is), 0)...> make_view(std::index_sequence<Is...>);
+    static View<T, LY, (static_cast<void>(Is), N)...> make_view(std::index_sequence<Is...>);
 
     template<Allocation Alloc>
     using type = decltype(make<Alloc>(std::make_index_sequence<Rank>{}));
@@ -528,9 +528,9 @@ std::ostream& print_array(std::ostream& out, const ArrayType& array){
     return out;
 }
 
-
-template<typename T, size_t Rank, Layout LY, Allocation Alloc = Allocation::Auto>
-using ArrayND = detail::HelperNdArray<T, Rank, LY>::template type<Alloc>;
+// Aarray with `Rank` indices, of common shape `N`
+template<typename T, size_t Rank, Layout LY, size_t N = 0, Allocation Alloc = Allocation::Auto>
+using ArrayND = detail::HelperNdArray<T, Rank, LY, N>::template type<Alloc>;
 
 template <typename T, size_t SIZE, Allocation Alloc = Allocation::Auto>
 using Array1D = Array<T, Alloc, Layout::C, SIZE>; // For 1D, layout is unimportant
@@ -548,8 +548,9 @@ template <typename T, size_t M, size_t N, size_t K, size_t L, size_t P, Layout L
 using Array5D = Array<T, Alloc, LY, M, N, K, L, P>;
 
 // ======== Row-major aliases =========
-template<typename T, size_t Rank, Allocation Alloc = Allocation::Auto>
-using CArrayND = ArrayND<T, Rank, Layout::C, Alloc>;
+// C-style array with `Rank` indices, of common shape `N`
+template<typename T, size_t Rank, size_t N = 0, Allocation Alloc = Allocation::Auto>
+using CArrayND = ArrayND<T, Rank, Layout::C, N, Alloc>;
 
 template<typename T, size_t M, size_t N, Allocation Alloc = Allocation::Auto>
 using CArray2D = Array2D<T, M, N, Layout::C, Alloc>;
@@ -564,8 +565,9 @@ template<typename T, size_t M, size_t N, size_t K, size_t L, size_t P, Allocatio
 using CArray5D = Array5D<T, M, N, K, L, P, Layout::C, Alloc>;
 
 // ======== Column-major aliases =========
-template<typename T, size_t Rank, Allocation Alloc = Allocation::Auto>
-using FArrayND = ArrayND<T, Rank, Layout::F, Alloc>;
+// F-style array with `Rank` indices, of common shape `N`
+template<typename T, size_t Rank, size_t N = 0, Allocation Alloc = Allocation::Auto>
+using FArrayND = ArrayND<T, Rank, Layout::F, N, Alloc>;
 
 template<typename T, size_t M, size_t N, Allocation Alloc = Allocation::Auto>
 using FArray2D = Array2D<T, M, N, Layout::F, Alloc>;
