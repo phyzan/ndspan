@@ -16,7 +16,7 @@
 
 #define THIS static_cast<std::conditional_t<std::is_void_v<Derived>, \
     std::remove_reference_t<decltype(*this)>, \
-    ndspan::detail::copy_const_t<std::remove_reference_t<decltype(*this)>, Derived>>*>(this)
+    ::ndspan::detail::copy_const_t<std::remove_reference_t<decltype(*this)>, Derived>>*>(this)
 
 #define NDSPAN_INLINE __attribute__((always_inline)) inline
 
