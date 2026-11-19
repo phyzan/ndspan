@@ -260,13 +260,13 @@ struct ArrayAllocMap<Allocation::Auto, LY, T, DIMS...> {
 template <typename T, Allocation Alloc = Allocation::Auto, Layout LY = Layout::C, size_t... DIMS>
 class Array : public detail::ArrayAllocMap<Alloc, LY, T, DIMS...>::type{
 
-    using Base = detail::ArrayAllocMap<Alloc, LY, T, DIMS...>::type;
+    using Base = typename detail::ArrayAllocMap<Alloc, LY, T, DIMS...>::type;
 
 public:
 
-    using value_type = Base::value_type;
-    using iterator = Base::iterator;
-    using const_iterator = Base::const_iterator;
+    using value_type = typename Base::value_type;
+    using iterator = typename Base::iterator;
+    using const_iterator = typename Base::const_iterator;
 
     using Base::Base;
 
@@ -530,7 +530,7 @@ std::ostream& print_array(std::ostream& out, const ArrayType& array){
 
 // Aarray with `Rank` indices, of common shape `N`
 template<typename T, size_t Rank, Layout LY, size_t N = 0, Allocation Alloc = Allocation::Auto>
-using ArrayND = detail::HelperNdArray<T, Rank, LY, N>::template type<Alloc>;
+using ArrayND = typename detail::HelperNdArray<T, Rank, LY, N>::template type<Alloc>;
 
 template <typename T, size_t SIZE, Allocation Alloc = Allocation::Auto>
 using Array1D = Array<T, Alloc, Layout::C, SIZE>; // For 1D, layout is unimportant
