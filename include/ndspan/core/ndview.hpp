@@ -161,12 +161,12 @@ private:
 
 
 template<typename Derived, std::integral... Int>
-inline Derived::value_type& tensor_call(Derived& x, Int... idx){
+inline typename Derived::value_type& tensor_call(Derived& x, Int... idx){
     return x(idx...);
 }
 
 template<typename Derived, std::integral... Int>
-inline const Derived::value_type& tensor_call(const Derived& x, Int... idx){
+inline const typename Derived::value_type& tensor_call(const Derived& x, Int... idx){
     return x(idx...);
 }
 
