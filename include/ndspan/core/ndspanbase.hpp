@@ -140,11 +140,21 @@ protected:
         }
     }
 
+    // Only a signed dim can be negative: comparing an unsigned one with 0 trips -Wtype-limits
+    template<std::integral Int>
+    NDSPAN_INLINE static constexpr bool _non_negative(Int dim) {
+        if constexpr (std::is_signed_v<Int>) {
+            return dim >= 0;
+        } else {
+            return true;
+        }
+    }
+
     template<std::integral... IntType>
     NDSPAN_INLINE static void _shape_check(IntType... dim) {
         if constexpr ((std::is_signed_v<IntType> || ...)) {
             NDSPAN_EXPAND(sizeof...(dim), I,
-                assert(((dim >= 0 ) && ...) && "Invalid dims");
+                assert((_non_negative(dim) && ...) && "Invalid dims");
             );
         }
     }
