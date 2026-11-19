@@ -20,8 +20,6 @@
 
 #define NDSPAN_INLINE __attribute__((always_inline)) inline
 
-#define NDSPAN_LAMBDA_INLINE __attribute__((always_inline, flatten))
-
 #define DEFAULT_RULE_OF_FOUR(CLASSNAME)                  \
     CLASSNAME(const CLASSNAME& other) = default;      \
     CLASSNAME(CLASSNAME&& other) = default;           \
