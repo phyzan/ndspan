@@ -78,12 +78,12 @@ constexpr size_t validate_size(size_t size){
 template<Fastest Index, typename F, std::integral First, std::integral... Int>
 NDSPAN_INLINE constexpr void for_each_impl(F&& f, const First Ni, const Int... Nj){
     if constexpr (sizeof...(Int) == 0){
-        for (size_t i = 0; i < Ni; ++i) {
+        for (std::decay_t<decltype(Ni)> i = 0; i < Ni; ++i) {
             std::forward<F>(f)(i);
         }
     } else if constexpr (Index == Fastest::Left) {
         for_each_impl<Index>([&](const auto... Nk) {
-            for (size_t i = 0; i < Ni; ++i) {
+            for (std::decay_t<decltype(Ni)> i = 0; i < Ni; ++i) {
                 f(i, Nk...);
             }
         }, Nj...);
