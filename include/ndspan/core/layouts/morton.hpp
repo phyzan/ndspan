@@ -98,7 +98,7 @@ public:
             size_t n = size_t(shape[i]) - 1;
             size_t bits = 0;
             while (n >> bits) {++bits;}
-            res = ndspan::max(bits, res);
+            res = std::max(bits, res);
         }
         return res;
     }
@@ -183,7 +183,7 @@ private:
             if (shape[i] == 0){
                 return 0;
             }
-            p = ndspan::max(p, detail::next_pow_of_2(size_t(shape[i])));
+            p = std::max(p, detail::next_pow_of_2(size_t(shape[i])));
         }
         size_t total = 1;
         for (size_t i = 0; i < nd; i++){

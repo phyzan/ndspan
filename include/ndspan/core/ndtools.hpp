@@ -166,35 +166,6 @@ NDSPAN_INLINE constexpr size_t prod(const Int* array, size_t size){
 }
 
 
-template<typename T>
-NDSPAN_INLINE bool equal_arrays(const T* a, const T* b, size_t size){
-    for (size_t i=0; i<size; i++){
-        if (a[i]!=b[i]) {return false;}
-    }
-    return true;
-}
-
-template<typename T>
-inline constexpr T max(const T& a, const T& b) {
-    return std::max<T>(a, b);
-}
-
-template<typename T>
-inline constexpr T min(const T& a, const T& b) {
-    return std::min<T>(a, b);
-}
-
-template<typename T>
-inline constexpr T min_of_pack(const auto&... args) {
-    return (std::min<T>)({args...});
-}
-
-
-template<typename... Args>
-inline constexpr auto max_of_pack(Args... args) {
-    return (max)({args...});
-}
-
 template<typename Array>
 void array_repr(std::ostream& out, const Array& array) {
     if (array.size() == 0){
@@ -207,13 +178,6 @@ void array_repr(std::ostream& out, const Array& array) {
     }
 }
 
-template<typename T, size_t size>
-NDSPAN_INLINE bool equal_arrays(const T* a, const T* b){
-    for (size_t i=0; i<size; i++){
-        if (a[i]!=b[i]) {return false;}
-    }
-    return true;
-}
 
 template<typename T>
 NDSPAN_INLINE bool isStrictlyAscending(const T* array, size_t size){
@@ -241,7 +205,7 @@ struct tail_product<Head, Tail...> {
 constexpr size_t comb(size_t n, size_t k) {
     assert(n >= k);
 
-    k = ndspan::min(k, n - k);
+    k = std::min(k, n - k);
 
     size_t res = 1;
     for (size_t i = 1; i <= k; ++i) {

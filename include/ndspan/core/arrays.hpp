@@ -512,7 +512,7 @@ std::ostream& print_array(std::ostream& out, const ArrayType& array){
         element = element_stream.str();
 
         size_t& width = column_widths[idx[ndim-1]];
-        width = ndspan::max(width, element.size());
+        width = std::max(width, element.size());
 
         // Advance to the next element, with the last axis changing fastest.
         for (size_t axis = ndim; axis > 0; --axis){
